@@ -1,0 +1,357 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+enum PlatformRole { SUPER_ADMIN COMPANY_ADMIN COMPANY_STAFF CUSTOMER }
+enum ProductKind { GLASS_ONLY RAW_PROFILE FINISHED_WINDOW FINISHED_DOOR HARDWARE }
+enum GlazingLayers { SINGLE DOUBLE TRIPLE }
+enum OrderStatus { NEW QUOTE_AMENDMENT CONFIRMED IN_PRODUCTION READY DELIVERED CLOSED CANCELLED }
+enum OrderItemStatus { PENDING ACCEPTED REJECTED }
+enum NotificationEvent { ORDER_CREATED ORDER_CONFIRMED ORDER_STATUS_CHANGED QUOTE_AMENDED ORDER_MESSAGE ORDER_READY STAFF_ASSIGNED }
+
+// ---------- Company (Supplier / Tenant) ----------
+model Company {
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  subscriptionPlan  String   @default("FREE")
+  isActive          Boolean  @default(true)
+
+  logoUrl           String?
+  primaryColor      String   @default("#1d4ed8")
+  secondaryColor    String   @default("#0f172a")
+  accentColor       String   @default("#f59e0b")
+  tagline           String?
+  aboutText         String?
+  contactEmail      String?
+  contactPhone      String?
+  address           String?
+  footerText        String?
+
+  currency          String   @default("USD")
+  taxRatePercent    Decimal  @default(0) @db.Decimal(5,2)
+  minOrderValue     Decimal  @default(0) @db.Decimal(10,2)
+  defaultMarkupPercent Decimal @default(25) @db.Decimal(5,2)
+  measurementUnit   String   @default("mm")
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  users             User[]
+  customerOrgs      CustomerOrg[]
+  glassTypes        GlassType[]
+  pvcProfiles       PvcProfile[]
+  hardwareItems     HardwareItem[]
+  productTemplates  ProductTemplate[]
+  processingOptions ProcessingOption[]
+  priceLists        PriceList[]
+  orders            Order[]
+
+  @@index([slug])
+}
+
+// ---------- Users & Customer Org ----------
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String?
+  name          String
+  phone         String?
+  platformRole  PlatformRole @default(CUSTOMER)
+  companyId     String?
+  company       Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerOrgId String?
+  customerOrg   CustomerOrg? @relation(fields: [customerOrgId], references: [id], onDelete: Cascade)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ordersCreated     Order[]  @relation("OrderCustomer")
+  ordersAssigned    Order[]  @relation("OrderAssignee")
+  notifications     Notification[]
+  orderMessages     OrderMessage[]
+
+  @@index([companyId])
+  @@index([customerOrgId])
+}
+
+model CustomerOrg {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String
+  taxId       String?
+  priceListId String?
+  priceList   PriceList? @relation(fields: [priceListId], references: [id])
+  billingAddress String?
+  shippingAddress String?
+  createdAt   DateTime @default(now())
+
+  members     User[]
+  orders      Order[]
+
+  @@index([companyId])
+}
+
+// ---------- Catalog ----------
+model GlassType {
+  id                String   @id @default(cuid())
+  companyId          String
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name              String
+  category          String
+  availableThicknessMm Json
+  isSafetyGlass     Boolean  @default(false)
+  isLowE            Boolean  @default(false)
+  soundReductionDb  Int?
+
+  baseThicknessMm   Int      @default(4)
+  costPricePerSqm   Decimal  @db.Decimal(10,2)
+  sellPricePerSqm   Decimal  @db.Decimal(10,2)
+  thicknessSurchargePercentPerMm Decimal @default(5) @db.Decimal(5,2)
+
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  orderItemPanes    OrderItemGlassPane[]
+
+  @@index([companyId])
+}
+
+model PvcProfile {
+  id                String   @id @default(cuid())
+  companyId          String
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  brand             String
+  systemName        String
+  chamberCount      Int
+  installDepthMm    Int
+  wallThicknessClass String?
+  colorOptions      Json
+  maxGlassThicknessMm Int @default(40)
+
+  costPricePerMeter Decimal  @db.Decimal(10,2)
+  sellPricePerMeter Decimal  @db.Decimal(10,2)
+
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  orderItems        OrderItem[]
+
+  @@index([companyId])
+}
+
+model HardwareItem {
+  id          String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name        String
+  category    String
+  unit        String   @default("piece")
+  costPrice   Decimal  @db.Decimal(10,2)
+  sellPrice   Decimal  @db.Decimal(10,2)
+
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  orderItemHardware OrderItemHardware[]
+
+  @@index([companyId])
+}
+
+model ProductTemplate {
+  id                String   @id @default(cuid())
+  companyId          String
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name              String
+  kind              ProductKind
+  openingCount      Int      @default(1)
+  complexityMultiplier Decimal @default(1.0) @db.Decimal(4,2)
+  minWidthMm        Int      @default(300)
+  maxWidthMm        Int      @default(3000)
+  minHeightMm       Int      @default(300)
+  maxHeightMm       Int      @default(3000)
+  isActive          Boolean  @default(true)
+
+  orderItems        OrderItem[]
+
+  @@index([companyId])
+}
+
+model ProcessingOption {
+  id        String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  costPrice Decimal  @db.Decimal(10,2)
+  sellPrice Decimal  @db.Decimal(10,2)
+  unit      String   @default("per_item")
+  isActive  Boolean  @default(true)
+
+  @@index([companyId])
+}
+
+// ---------- Price Lists ----------
+model PriceList {
+  id             String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name           String
+  discountPercent Decimal @default(0) @db.Decimal(5,2)
+  isDefault      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  customers      CustomerOrg[]
+
+  @@index([companyId])
+}
+
+// ---------- Orders ----------
+model Order {
+  id              String   @id @default(cuid())
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerOrgId    String
+  customerOrg      CustomerOrg @relation(fields: [customerOrgId], references: [id], onDelete: Cascade)
+  createdById      String
+  createdBy        User     @relation("OrderCustomer", fields: [createdById], references: [id])
+  assigneeId       String?
+  assignee         User?    @relation("OrderAssignee", fields: [assigneeId], references: [id])
+
+  orderNumber      String   @unique
+  status           OrderStatus @default(NEW)
+  currency         String
+  subtotal         Decimal  @db.Decimal(12,2)
+  taxAmount        Decimal  @db.Decimal(12,2)
+  discountAmount   Decimal  @default(0) @db.Decimal(12,2)
+  total            Decimal  @db.Decimal(12,2)
+
+  shippingAddress  String?
+  requestedDate    DateTime?
+  internalNotes    String?
+  customerNotes    String?
+  referenceImageUrl String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  confirmedAt      DateTime?
+  closedAt         DateTime?
+
+  items            OrderItem[]
+  messages         OrderMessage[]
+  statusHistory    OrderStatusHistory[]
+  notifications    Notification[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([customerOrgId])
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productKind ProductKind
+  templateId  String?
+  template    ProductTemplate? @relation(fields: [templateId], references: [id])
+
+  widthMm     Int?
+  heightMm    Int?
+  lengthM     Decimal?  @db.Decimal(8,2)
+  quantity    Int      @default(1)
+
+  profileId   String?
+  profile     PvcProfile? @relation(fields: [profileId], references: [id])
+  profileColor String?
+
+  glazingLayers GlazingLayers @default(DOUBLE)
+  airGapMm    Int?     @default(16)
+  gasFill     String?  @default("air")
+
+  unitPrice   Decimal  @db.Decimal(12,2)
+  lineTotal   Decimal  @db.Decimal(12,2)
+  status      OrderItemStatus @default(PENDING)
+  note        String?
+
+  glassPanes  OrderItemGlassPane[]
+  hardware    OrderItemHardware[]
+
+  @@index([orderId])
+}
+
+model OrderItemGlassPane {
+  id        String   @id @default(cuid())
+  orderItemId String
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  glassTypeId String
+  glassType GlassType @relation(fields: [glassTypeId], references: [id])
+  paneIndex Int
+  thicknessMm Int
+  areaSqm   Decimal  @db.Decimal(8,4)
+  price     Decimal  @db.Decimal(12,2)
+
+  @@index([orderItemId])
+}
+
+model OrderItemHardware {
+  id        String   @id @default(cuid())
+  orderItemId String
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  hardwareId String
+  hardware HardwareItem @relation(fields: [hardwareId], references: [id])
+  quantity Int      @default(1)
+  price    Decimal  @db.Decimal(12,2)
+
+  @@index([orderItemId])
+}
+
+model OrderStatusHistory {
+  id        String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  changedBy  String?
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
+}
+
+model OrderMessage {
+  id        String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id])
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId    String?
+  order      Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  event     NotificationEvent
+  title     String
+  body      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+}
