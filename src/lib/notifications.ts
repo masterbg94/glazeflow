@@ -1,6 +1,6 @@
-import { prisma } from "./prisma";
-import { NotificationEvent } from "@prisma/client";
-import { sendEmail } from "./email";
+import { NotificationEvent } from '@prisma/client';
+import { sendEmail } from './email';
+import { prisma } from './prisma';
 
 const sseClients = new Map<string, Set<ReadableStreamDefaultController>>();
 
@@ -18,13 +18,30 @@ function pushSSE(userId: string, data: unknown) {
   if (!clients) return;
   const payload = `data: ${JSON.stringify(data)}\n\n`;
   clients.forEach((c) => {
-    try { c.enqueue(new TextEncoder().encode(payload)); } catch { clients.delete(c); }
+    try {
+      c.enqueue(new TextEncoder().encode(payload));
+    } catch {
+      clients.delete(c);
+    }
   });
 }
 
-export async function notify(input: { userId: string; event: NotificationEvent; title: string; body: string; orderId?: string; email?: boolean }) {
+export async function notify(input: {
+  userId: string;
+  event: NotificationEvent;
+  title: string;
+  body: string;
+  orderId?: string;
+  email?: boolean;
+}) {
   const notification = await prisma.notification.create({
-    data: { userId: input.userId, orderId: input.orderId, event: input.event, title: input.title, body: input.body },
+    data: {
+      userId: input.userId,
+      orderId: input.orderId,
+      event: input.event,
+      title: input.title,
+      body: input.body,
+    },
   });
   pushSSE(input.userId, notification);
   if (input.email) {

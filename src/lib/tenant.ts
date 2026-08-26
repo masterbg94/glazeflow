@@ -1,5 +1,5 @@
-import { prisma } from "./prisma";
-import { notFound } from "next/navigation";
+import { notFound } from 'next/navigation';
+import { prisma } from './prisma';
 
 export async function getCompanyBySlug(slug: string) {
   const company = await prisma.company.findUnique({

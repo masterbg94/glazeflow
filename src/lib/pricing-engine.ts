@@ -42,7 +42,7 @@ export function glassPanePrice(pane: GlassPaneInput, area: number): number {
 }
 
 export function calcItemPricing(input: {
-  kind: "GLASS_ONLY" | "RAW_PROFILE" | "FINISHED_WINDOW" | "FINISHED_DOOR" | "HARDWARE";
+  kind: 'GLASS_ONLY' | 'RAW_PROFILE' | 'FINISHED_WINDOW' | 'FINISHED_DOOR' | 'HARDWARE';
   widthMm?: number;
   heightMm?: number;
   lengthM?: number;
@@ -60,18 +60,22 @@ export function calcItemPricing(input: {
   let area: number | undefined;
   let perim: number | undefined;
 
-  if (input.kind === "GLASS_ONLY" || input.kind === "FINISHED_WINDOW" || input.kind === "FINISHED_DOOR") {
+  if (
+    input.kind === 'GLASS_ONLY' ||
+    input.kind === 'FINISHED_WINDOW' ||
+    input.kind === 'FINISHED_DOOR'
+  ) {
     const w = input.widthMm ?? 0;
     const h = input.heightMm ?? 0;
     area = areaSqm(w, h);
     perim = perimeterM(w, h);
     glassCost = input.glassPanes.reduce((sum, p) => sum + glassPanePrice(p, area!), 0);
-    if (input.kind !== "GLASS_ONLY" && input.profileSellPricePerMeter) {
+    if (input.kind !== 'GLASS_ONLY' && input.profileSellPricePerMeter) {
       profileCost = perim * input.profileSellPricePerMeter;
     }
   }
 
-  if (input.kind === "RAW_PROFILE") {
+  if (input.kind === 'RAW_PROFILE') {
     const len = input.lengthM ?? 0;
     profileCost = len * (input.profileSellPricePerMeter ?? 0);
   }
@@ -79,11 +83,21 @@ export function calcItemPricing(input: {
   hardwareCost = input.hardware.reduce((s, h) => s + h.sellPrice * h.quantity, 0);
   processingCost = input.processing.reduce((a, b) => a + b, 0);
 
-  const baseUnit = (profileCost + glassCost + hardwareCost + processingCost) * input.complexityMultiplier;
+  const baseUnit =
+    (profileCost + glassCost + hardwareCost + processingCost) * input.complexityMultiplier;
   const unitPrice = Math.round(baseUnit * 100) / 100;
   const lineTotal = Math.round(unitPrice * input.quantity * 100) / 100;
 
-  return { areaSqm: area, perimeterM: perim, profileCost, glassCost, hardwareCost, processingCost, unitPrice, lineTotal };
+  return {
+    areaSqm: area,
+    perimeterM: perim,
+    profileCost,
+    glassCost,
+    hardwareCost,
+    processingCost,
+    unitPrice,
+    lineTotal,
+  };
 }
 
 export function calcTotals(lineTotals: number[], discountPercent: number, taxRatePercent: number) {

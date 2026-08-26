@@ -1,17 +1,20 @@
-"use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", email: "", password: "", companySlug: "acme" });
+  const [form, setForm] = useState({ name: '', email: '', password: '', companySlug: 'acme' });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const res = await fetch("/api/register", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+    const res = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
     });
-    if (res.ok) router.push("/login");
+    if (res.ok) router.push('/login');
   }
 
   return (
@@ -21,21 +24,45 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Full name</label>
-            <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+            <input
+              className="input"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
-            <input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+            <input
+              type="email"
+              className="input"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              required
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
-            <input type="password" className="input" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+            <input
+              type="password"
+              className="input"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              required
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Supplier slug</label>
-            <input className="input" value={form.companySlug} onChange={(e) => setForm({ ...form, companySlug: e.target.value })} required />
+            <input
+              className="input"
+              value={form.companySlug}
+              onChange={(e) => setForm({ ...form, companySlug: e.target.value })}
+              required
+            />
           </div>
-          <button className="btn w-full bg-blue-600 text-white hover:bg-blue-700">Create account</button>
+          <button className="btn w-full bg-blue-600 text-white hover:bg-blue-700">
+            Create account
+          </button>
         </form>
       </div>
     </div>

@@ -1,4 +1,42 @@
 {
+  "semi": true,
+  "singleQuote": true,
   "tabWidth": 2,
-  "useTabs": false
+  "trailingComma": "es5",
+  "printWidth": 100,
+  "bracketSpacing": true,
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "plugins": [
+    "prettier-plugin-tailwindcss",
+    "prettier-plugin-prisma",
+    "@ianvs/prettier-plugin-sort-imports"
+  ],
+  "importOrder": ["^@/", "^[./]"],
+  "overrides": [
+    {
+      "files": "*.{ts,tsx,js,jsx}",
+      "options": {
+        "parser": "typescript"
+      }
+    },
+    {
+      "files": "*.json",
+      "options": {
+        "parser": "json"
+      }
+    },
+    {
+      "files": "*.css",
+      "options": {
+        "parser": "css"
+      }
+    },
+    {
+      "files": "prisma/*.prisma",
+      "options": {
+        "parser": "prisma-parse"
+      }
+    }
+  ]
 }

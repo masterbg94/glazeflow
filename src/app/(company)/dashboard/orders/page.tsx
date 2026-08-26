@@ -1,12 +1,14 @@
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
-import { OrderKanban } from "@/components/dashboard/OrderKanban";
+import { OrderKanban } from '@/components/dashboard/OrderKanban';
+import { getSession } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 export default async function OrdersPage() {
   const session = await getSession();
   const companyId = (session?.user as any).companyId;
   const orders = await prisma.order.findMany({
-    where: { companyId }, orderBy: { createdAt: "desc" }, include: { customerOrg: true, items: true },
+    where: { companyId },
+    orderBy: { createdAt: 'desc' },
+    include: { customerOrg: true, items: true },
   });
 
   return (

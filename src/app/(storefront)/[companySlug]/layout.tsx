@@ -1,23 +1,40 @@
-import { getCompanyBySlug } from "@/lib/tenant";
-import { getSession } from "@/lib/auth";
-import { NotificationBell } from "@/components/notifications/NotificationBell";
-import Link from "next/link";
-import Image from "next/image";
+import Image from 'next/image';
+import Link from 'next/link';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { getSession } from '@/lib/auth';
+import { getCompanyBySlug } from '@/lib/tenant';
 
-export default async function StorefrontLayout({ children, params }: { children: React.ReactNode; params: Promise<{ companySlug: string }> }) {
+export default async function StorefrontLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: Promise<{ companySlug: string }>;
+}) {
   const { companySlug } = await params;
   const company = await getCompanyBySlug(companySlug);
   const session = await getSession();
 
   return (
-    <div style={{ "--brand-primary": company.primaryColor, "--brand-secondary": company.secondaryColor, "--brand-accent": company.accentColor } as React.CSSProperties}>
+    <div
+      style={
+        {
+          '--brand-primary': company.primaryColor,
+          '--brand-secondary': company.secondaryColor,
+          '--brand-accent': company.accentColor,
+        } as React.CSSProperties
+      }
+    >
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <Link href={`/${companySlug}`} className="flex items-center gap-3">
             {company.logoUrl ? (
               <Image src={company.logoUrl} alt={company.name} width={40} height={40} />
             ) : (
-              <div className="h-10 w-10 rounded-lg" style={{ backgroundColor: "var(--brand-primary)" }} />
+              <div
+                className="h-10 w-10 rounded-lg"
+                style={{ backgroundColor: 'var(--brand-primary)' }}
+              />
             )}
             <div>
               <p className="font-bold text-slate-900">{company.name}</p>
@@ -25,15 +42,32 @@ export default async function StorefrontLayout({ children, params }: { children:
             </div>
           </Link>
           <nav className="flex items-center gap-4">
-            <Link href={`/${companySlug}/order`} className="text-sm font-medium text-slate-700 hover:text-brand-primary">Order Now</Link>
-            <Link href={`/${companySlug}/my-orders`} className="text-sm font-medium text-slate-700 hover:text-brand-primary">My Orders</Link>
-            {session?.user ? <NotificationBell /> : <Link href="/login" className="text-sm font-medium text-blue-600">Sign in</Link>}
+            <Link
+              href={`/${companySlug}/order`}
+              className="text-sm font-medium text-slate-700 hover:text-brand-primary"
+            >
+              Order Now
+            </Link>
+            <Link
+              href={`/${companySlug}/my-orders`}
+              className="text-sm font-medium text-slate-700 hover:text-brand-primary"
+            >
+              My Orders
+            </Link>
+            {session?.user ? (
+              <NotificationBell />
+            ) : (
+              <Link href="/login" className="text-sm font-medium text-blue-600">
+                Sign in
+              </Link>
+            )}
           </nav>
         </div>
       </header>
       <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
       <footer className="mt-16 border-t border-slate-200 py-8 text-center text-sm text-slate-400">
-        {company.footerText || `© ${new Date().getFullYear()} ${company.name}. All rights reserved.`}
+        {company.footerText ||
+          `© ${new Date().getFullYear()} ${company.name}. All rights reserved.`}
       </footer>
     </div>
   );
