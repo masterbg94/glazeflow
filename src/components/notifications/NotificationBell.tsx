@@ -1,11 +1,21 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import { useNotifications } from "./NotificationProvider";
 
-export function NotificationBell() {
-  const { notifications, unread } = useNotifications();
+export function NotificationBell({ orderBasePath }: { orderBasePath?: string }) {
+  const { notifications, unread, markRead, clearAll } = useNotifications();
   const [open, setOpen] = useState(false);
+  const router = useRouter();
+
+  function onClick(n: { id: string; orderId?: string | null }) {
+    markRead(n.id);
+    if (n.orderId && orderBasePath) {
+      router.push(`${orderBasePath}/${n.orderId}`);
+      setOpen(false);
+    }
+  }
 
   return (
     <div className="relative">
@@ -22,14 +32,28 @@ export function NotificationBell() {
       </button>
       {open && (
         <div className="absolute right-0 z-50 mt-2 max-h-96 w-80 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+          <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+            <span className="text-xs font-medium text-slate-500">Notifications</span>
+            {unread > 0 && (
+              <button onClick={clearAll} className="text-xs text-blue-600 hover:underline">
+                Mark all read
+              </button>
+            )}
+          </div>
           {notifications.length === 0 && (
             <p className="p-4 text-sm text-slate-400">No notifications yet.</p>
           )}
           {notifications.map((n) => (
-            <div key={n.id} className="border-b border-slate-100 p-3 hover:bg-slate-50">
+            <button
+              key={n.id}
+              onClick={() => onClick(n)}
+              className={`block w-full border-b border-slate-100 p-3 text-left hover:bg-slate-50 ${
+                n.isRead ? "opacity-60" : ""
+              }`}
+            >
               <p className="text-sm font-medium">{n.title}</p>
               <p className="text-xs text-slate-500">{n.body}</p>
-            </div>
+            </button>
           ))}
         </div>
       )}

@@ -1,8 +1,26 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
 
-interface Notification { id: string; title: string; body: string; isRead: boolean; createdAt: string; }
-const Ctx = createContext<{ notifications: Notification[]; unread: number }>({ notifications: [], unread: 0 });
+interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  isRead: boolean;
+  createdAt: string;
+  orderId?: string | null;
+}
+interface CtxValue {
+  notifications: Notification[];
+  unread: number;
+  markRead: (id: string) => void;
+  clearAll: () => void;
+}
+const Ctx = createContext<CtxValue>({
+  notifications: [],
+  unread: 0,
+  markRead: () => {},
+  clearAll: () => {},
+});
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -23,8 +41,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     return () => es.close();
   }, []);
 
+  function markRead(id: string) {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+    fetch(`/api/notifications/${id}/read`, { method: "POST" }).catch(() => {});
+  }
+
+  function clearAll() {
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    fetch("/api/notifications/read-all", { method: "POST" }).catch(() => {});
+  }
+
   const unread = notifications.filter((n) => !n.isRead).length;
-  return <Ctx.Provider value={{ notifications, unread }}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={{ notifications, unread, markRead, clearAll }}>
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 export function useNotifications() { return useContext(Ctx); }

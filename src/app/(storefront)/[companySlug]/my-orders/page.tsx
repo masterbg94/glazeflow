@@ -34,7 +34,7 @@ export default async function MyOrders({ params }: { params: Promise<{ companySl
               </div>
               <div className="text-right">
                 <p className="font-semibold text-blue-600">
-                  {o.total} {o.currency}
+                  {o.total.toString()} {o.currency}
                 </p>
                 <p className="text-xs text-slate-500">{o.status}</p>
               </div>

@@ -36,7 +36,7 @@ export default async function DashboardHome() {
               </div>
               <div className="text-right">
                 <p className="font-medium">
-                  {o.total} {o.currency}
+                  {o.total.toString()} {o.currency}
                 </p>
                 <p className="text-xs text-slate-500">{o.status}</p>
               </div>

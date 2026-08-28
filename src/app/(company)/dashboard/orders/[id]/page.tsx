@@ -3,22 +3,26 @@ import { OrderMessages } from '@/components/dashboard/OrderMessages';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-export default async function OrderDetail({
+export default async function AdminOrderDetail({
   params,
 }: {
-  params: Promise<{ id: string; companySlug: string }>;
+  params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
   const session = await getSession();
   if (!session?.user) return <p>Please login.</p>;
 
+  const user = session.user as any;
   const order = await prisma.order.findUnique({
     where: { id },
     include: {
+      customerOrg: true,
+      createdBy: { select: { name: true, email: true } },
       items: {
         include: {
           glassPanes: { include: { glassType: true } },
           hardware: { include: { hardware: true } },
+          processing: { include: { processingOption: true } },
           profile: true,
           template: true,
         },
@@ -26,7 +30,7 @@ export default async function OrderDetail({
       statusHistory: true,
     },
   });
-  if (!order || order.createdById !== (session.user as any).id) notFound();
+  if (!order || order.companyId !== user.companyId) notFound();
 
   return (
     <div className="space-y-6">
@@ -34,13 +38,28 @@ export default async function OrderDetail({
         <div>
           <h1 className="text-2xl font-bold">{order.orderNumber}</h1>
           <p className="text-sm text-slate-500">
-            Ordered {new Date(order.createdAt).toLocaleDateString()}
+            Ordered {new Date(order.createdAt).toLocaleDateString()} by{' '}
+            {order.createdBy?.name ?? '—'} ({order.createdBy?.email ?? '—'})
           </p>
         </div>
         <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
           {order.status}
         </span>
       </div>
+
+      {order.customerNotes && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <h2 className="mb-1 text-sm font-semibold text-amber-800">Customer note</h2>
+          <p className="text-sm text-amber-900">{order.customerNotes}</p>
+        </div>
+      )}
+
+      {order.shippingAddress && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="mb-1 text-sm font-semibold text-slate-700">Shipping address</h2>
+          <p className="text-sm text-slate-600">{order.shippingAddress}</p>
+        </div>
+      )}
 
       <div className="rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-sm">
@@ -66,6 +85,16 @@ export default async function OrderDetail({
                   {item.glassPanes.map((p) => (
                     <p key={p.id} className="text-xs text-slate-400">
                       {p.glassType.name} {p.thicknessMm}mm
+                    </p>
+                  ))}
+                  {item.hardware.map((h) => (
+                    <p key={h.id} className="text-xs text-slate-400">
+                      {h.hardware.name} × {h.quantity}
+                    </p>
+                  ))}
+                  {item.processing.map((p) => (
+                    <p key={p.id} className="text-xs text-slate-400">
+                      {p.processingOption.name}
                     </p>
                   ))}
                 </td>

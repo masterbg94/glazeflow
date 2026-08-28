@@ -4,6 +4,31 @@ import { getCompanyBySlug } from '@/lib/tenant';
 export default async function OrderPage({ params }: { params: Promise<{ companySlug: string }> }) {
   const { companySlug } = await params;
   const company = await getCompanyBySlug(companySlug);
+  const glassTypes = company.glassTypes.map((item) => ({
+    ...item,
+    costPricePerSqm: Number(item.costPricePerSqm),
+    sellPricePerSqm: Number(item.sellPricePerSqm),
+    thicknessSurchargePercentPerMm: Number(item.thicknessSurchargePercentPerMm),
+  }));
+  const pvcProfiles = company.pvcProfiles.map((item) => ({
+    ...item,
+    costPricePerMeter: Number(item.costPricePerMeter),
+    sellPricePerMeter: Number(item.sellPricePerMeter),
+  }));
+  const hardwareItems = company.hardwareItems.map((item) => ({
+    ...item,
+    costPrice: Number(item.costPrice),
+    sellPrice: Number(item.sellPrice),
+  }));
+  const productTemplates = company.productTemplates.map((item) => ({
+    ...item,
+    complexityMultiplier: Number(item.complexityMultiplier),
+  }));
+  const processingOptions = company.processingOptions.map((item) => ({
+    ...item,
+    costPrice: Number(item.costPrice),
+    sellPrice: Number(item.sellPrice),
+  }));
 
   return (
     <div>
@@ -14,11 +39,11 @@ export default async function OrderPage({ params }: { params: Promise<{ companyS
       <OrderWizard
         companyId={company.id}
         currency={company.currency}
-        glassTypes={company.glassTypes as any}
-        profiles={company.pvcProfiles as any}
-        hardwareItems={company.hardwareItems as any}
-        templates={company.productTemplates as any}
-        processingOptions={company.processingOptions as any}
+        glassTypes={glassTypes}
+        profiles={pvcProfiles}
+        hardwareItems={hardwareItems}
+        templates={productTemplates}
+        processingOptions={processingOptions}
       />
     </div>
   );

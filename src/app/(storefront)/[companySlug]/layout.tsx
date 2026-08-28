@@ -55,7 +55,13 @@ export default async function StorefrontLayout({
               My Orders
             </Link>
             {session?.user ? (
-              <NotificationBell />
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="text-sm font-medium text-slate-900">{(session.user as any).name}</p>
+                  <p className="text-xs text-slate-500">{(session.user as any).email}</p>
+                </div>
+                <NotificationBell orderBasePath={`/${companySlug}/my-orders`} />
+              </div>
             ) : (
               <Link href="/login" className="text-sm font-medium text-blue-600">
                 Sign in

@@ -12,15 +12,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect('/login');
   }
 
+  const user = session?.user as any;
+
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex h-screen overflow-hidden bg-slate-50">
       <Sidebar />
-      <div className="flex-1">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
           <h1 className="text-lg font-semibold text-slate-900">Company Dashboard</h1>
-          <NotificationBell />
+          <div className="flex items-center gap-4">
+            {user && (
+              <div className="text-right">
+                <p className="text-sm font-medium text-slate-900">{user.name}</p>
+                <p className="text-xs text-slate-500">{user.email}</p>
+              </div>
+            )}
+            <NotificationBell orderBasePath="/dashboard/orders" />
+          </div>
         </header>
-        <main className="p-6">{children}</main>
+        <main className="min-h-0 flex-1 overflow-auto p-6">{children}</main>
       </div>
     </div>
   );

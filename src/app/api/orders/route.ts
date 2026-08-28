@@ -11,7 +11,9 @@ export async function GET() {
   const where =
     user.platformRole === 'CUSTOMER'
       ? { customerOrgId: user.customerOrgId }
-      : { companyId: user.companyId };
+      : user.platformRole === 'SUPER_ADMIN'
+        ? {}
+        : { companyId: user.companyId };
   const orders = await prisma.order.findMany({
     where,
     orderBy: { createdAt: 'desc' },
@@ -62,12 +64,17 @@ export async function POST(req: NextRequest) {
     for (const h of item.hardware ?? []) {
       const hw = await prisma.hardwareItem.findUnique({ where: { id: h.hardwareId } });
       if (!hw) continue;
-      hardware.push({ sellPrice: Number(hw.sellPrice), quantity: h.quantity });
+      hardware.push({ hardwareId: h.hardwareId, sellPrice: Number(hw.sellPrice), quantity: h.quantity });
     }
     const processing = [];
+    const processingItems = [];
     for (const pid of item.processingIds ?? []) {
       const po = await prisma.processingOption.findUnique({ where: { id: pid } });
-      if (po) processing.push(Number(po.sellPrice));
+      if (po) {
+        const price = Number(po.sellPrice);
+        processing.push(price);
+        processingItems.push({ processingOptionId: pid, price, quantity: 1 });
+      }
     }
     const template = item.templateId
       ? await prisma.productTemplate.findUnique({ where: { id: item.templateId } })
@@ -85,7 +92,7 @@ export async function POST(req: NextRequest) {
       hardware,
       processing,
     });
-    computedItems.push({ ...item, pricing, glassPanes, hardware });
+    computedItems.push({ ...item, pricing, glassPanes, hardware, processingItems });
   }
 
   const totals = calcTotals(
@@ -140,6 +147,13 @@ export async function POST(req: NextRequest) {
               hardwareId: h.hardwareId,
               quantity: h.quantity,
               price: h.sellPrice * h.quantity,
+            })),
+          },
+          processing: {
+            create: item.processingItems.map((p: any) => ({
+              processingOptionId: p.processingOptionId,
+              quantity: p.quantity,
+              price: p.price,
             })),
           },
         })),

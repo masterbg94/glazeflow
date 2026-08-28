@@ -1,7 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { calcItemPricing } from "@/lib/pricing-engine";
 import { PriceSummary } from "./PriceSummary";
+import { formatCurrency } from "@/lib/utils";
 
 type Kind = "GLASS_ONLY" | "RAW_PROFILE" | "FINISHED_WINDOW" | "FINISHED_DOOR" | "HARDWARE";
 
@@ -55,6 +57,11 @@ export function OrderWizard({
   const [hardwareSel, setHardwareSel] = useState<Record<string, number>>({});
   const [processingSel, setProcessingSel] = useState<string[]>([]);
   const [cart, setCart] = useState<any[]>([]);
+  const [shippingAddress, setShippingAddress] = useState("");
+  const [customerNotes, setCustomerNotes] = useState("");
+  const [requestedDate, setRequestedDate] = useState<Date | null>(null);
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const selectedProfile = profiles.find((p) => p.id === profileId);
   const selectedGlass = glassTypes.find((g) => g.id === glassTypeId);
@@ -159,6 +166,73 @@ export function OrderWizard({
       pricing,
     };
     setCart((prev) => [...prev, doc]);
+  }
+
+  async function submitOrder() {
+    if (loading || cart.length === 0) return;
+    setLoading(true);
+
+    try {
+      const sessionResponse = await fetch("/api/auth/session");
+      const session = sessionResponse.ok ? await sessionResponse.json() : null;
+      if (!session?.user || (session.user as any).platformRole !== "CUSTOMER") return;
+
+      const orderItems = cart.map((item) => {
+        const glassPanes = ["GLASS_ONLY", "FINISHED_WINDOW", "FINISHED_DOOR"].includes(item.kind)
+          ? item.paneThicknesses
+              .slice(0, item.layers === "SINGLE" ? 1 : item.layers === "DOUBLE" ? 2 : 3)
+              .map((thicknessMm: number, idx: number) => ({
+                glassTypeId: item.glassTypeId,
+                paneIndex: idx + 1,
+                thicknessMm,
+              }))
+          : [];
+        const hardware = Object.entries(item.hardwareSel as Record<string, number>)
+          .filter(([, q]) => q > 0)
+          .map(([hardwareId, q]) => ({ hardwareId, quantity: q }));
+
+        return {
+          kind: item.kind,
+          templateId: item.templateId ?? null,
+          widthMm: item.widthMm ?? null,
+          heightMm: item.heightMm ?? null,
+          lengthM: item.lengthM ?? null,
+          quantity: item.quantity,
+          profileId: item.profileId ?? null,
+          profileColor: item.profileColor ?? null,
+          glazingLayers: item.layers ?? "DOUBLE",
+          glassPanes,
+          hardware,
+          processingIds: item.processingSel ?? [],
+        };
+      });
+
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          items: orderItems,
+          shippingAddress,
+          customerNotes,
+          requestedDate: requestedDate ? requestedDate.toISOString() : undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert("Order submission failed: " + (err.error || "Unknown error"));
+        return;
+      }
+
+      setCart([]);
+      setShippingAddress("");
+      setCustomerNotes("");
+      setRequestedDate(null);
+      router.push("/my-orders");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -356,9 +430,83 @@ export function OrderWizard({
           </div>
         </section>
 
-        <button onClick={addToCart} className="btn w-full bg-blue-600 text-white hover:opacity-90">
-          Add to Order ({cart.length} items)
-        </button>
+        <div className="mt-6">
+          <button
+            onClick={addToCart}
+            className="btn w-full bg-blue-600 text-white hover:opacity-90 mb-4">
+            Add to Order ({cart.length} items)
+          </button>
+
+          {cart.length > 0 && (
+            <div className="mt-4 rounded-xl border border-blue-600 bg-blue-50/50 p-4">
+              <h4 className="text-sm font-semibold">Order summary ({cart.length} lines)</h4>
+              <div className="mt-2 space-y-1 text-xs text-slate-600">
+                {cart.map((c, i) => (
+                  <div key={i} className="flex justify-between">
+                    <span>{c.kind.replace(/_/g, " ")} × {c.quantity}</span>
+                    <span>{c.pricing.lineTotal.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 p-3 border-t border-slate-200">
+                <div className="flex justify-between text-xs text-slate-600">
+                  <span>Unit price</span>
+                  <span>{formatCurrency(pricing.unitPrice, currency)}</span>
+                </div>
+                <div className="font-medium text-slate-900 flex justify-between">
+                  <span>× {quantity}</span>
+                  <span>{formatCurrency(pricing.lineTotal, currency)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Submit Order form - shown when cart has items */}
+          {cart.length > 0 && (
+            <section className="mt-6 rounded-xl border border-slate-200 bg-white p-6">
+              <h3 className="mb-4 font-semibold">8. Review & Submit</h3>
+              
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500">Shipping address</label>
+                  <textarea
+                    value={shippingAddress}
+                    onChange={(e) => setShippingAddress(e.target.value)}
+                    className="input w-full h-20 rounded border border-slate-300 p-3 resize-y"
+                    placeholder="Enter shipping address"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500">Preferred delivery date</label>
+                  <input
+                    type="date"
+                    value={requestedDate?.toISOString().split('T')[0] || ""}
+                    onChange={(e) => setRequestedDate(e.target.value ? new Date(e.target.value) : null)}
+                    className="input w-full rounded border border-slate-300 p-2"
+                  />
+                </div>
+              </div>
+              
+              <textarea
+                value={customerNotes}
+                onChange={(e) => setCustomerNotes(e.target.value)}
+                className="input w-full rounded border border-slate-300 p-3 h-24 resize-y"
+                placeholder="Optional: Any special notes for the supplier?"
+                rows={3}
+              />
+              
+              <div className="mt-6">
+                <button
+                  onClick={submitOrder}
+                  className="btn w-full bg-blue-600 text-white hover:bg-blue-700 py-3 font-medium">
+                  {loading ? 'Submitting order...' : 'Submit Order'}
+                </button>
+                {loading && <p className="mt-2 text-sm text-slate-500">Processing your order...</p>}
+              </div>
+            </section>
+          )}
+        </div>
       </div>
 
       <div>
