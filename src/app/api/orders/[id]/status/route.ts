@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { notify } from '@/lib/notifications';
+import { publishToUsers } from '@/lib/realtime';
 import { prisma } from '@/lib/prisma';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -29,6 +30,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
 
   const members = await prisma.user.findMany({ where: { customerOrgId: order.customerOrgId } });
+  const staff = await prisma.user.findMany({
+    where: { companyId: order.companyId, platformRole: { in: ['COMPANY_ADMIN', 'COMPANY_STAFF'] } },
+  });
+
+  // Push the updated order to customer org members and company staff in real time
+  // (excluding the user who made the change — their own UI already updated).
+  const recipientIds = [...new Set([...members, ...staff].map((u) => u.id).filter((uid) => uid !== user.id))];
+  publishToUsers(recipientIds, 'order:update', { orderId: order.id, order: updated });
+
   for (const m of members) {
     await notify({
       userId: m.id,

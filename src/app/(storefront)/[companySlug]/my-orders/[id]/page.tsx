@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { OrderMessages } from '@/components/dashboard/OrderMessages';
+import { RealtimeOrderRefresher } from '@/components/dashboard/RealtimeOrderRefresher';
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
@@ -30,6 +31,7 @@ export default async function OrderDetail({
 
   return (
     <div className="space-y-6">
+      <RealtimeOrderRefresher orderId={order.id} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">{order.orderNumber}</h1>

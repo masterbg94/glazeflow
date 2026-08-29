@@ -2,9 +2,9 @@
 
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const callback = params.get('callbackUrl') || '/dashboard';
@@ -37,35 +37,15 @@ export default function LoginPage() {
           <p className="mt-1 text-sm text-slate-500">Sign in to your account</p>
         </div>
         {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input"
-              required
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input"
-              required
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn w-full bg-blue-600 text-white hover:bg-blue-700"
-          >
-            {loading ? 'Signing in...' : 'Sign in'}
-          </button>
-        </form>
+        <LoginFormFields
+          email={email}
+          password={password}
+          setEmail={setEmail}
+          setPassword={setPassword}
+          error={error}
+          loading={loading}
+          handleSubmit={handleSubmit}
+        />
         <p className="mt-6 text-center text-sm text-slate-500">
           No account?{' '}
           <a href="/register" className="text-blue-600 hover:underline">
@@ -74,5 +54,63 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+function LoginFormFields({
+  email,
+  password,
+  setEmail,
+  setPassword,
+  error,
+  loading,
+  handleSubmit,
+}: {
+  email: string;
+  password: string;
+  setEmail: (v: string) => void;
+  setPassword: (v: string) => void;
+  error: string;
+  loading: boolean;
+  handleSubmit: (e: React.FormEvent) => void;
+}) {
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="input"
+          required
+        />
+      </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="input"
+          required
+        />
+      </div>
+      <button
+        type="submit"
+        disabled={loading}
+        className="btn w-full bg-blue-600 text-white hover:bg-blue-700"
+      >
+        {loading ? 'Signing in...' : 'Sign in'}
+      </button>
+    </form>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

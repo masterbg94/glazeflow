@@ -1,30 +1,7 @@
 import { NotificationEvent } from '@prisma/client';
 import { sendEmail } from './email';
 import { prisma } from './prisma';
-
-const sseClients = new Map<string, Set<ReadableStreamDefaultController>>();
-
-export function registerSSE(userId: string, controller: ReadableStreamDefaultController) {
-  if (!sseClients.has(userId)) sseClients.set(userId, new Set());
-  sseClients.get(userId)!.add(controller);
-}
-
-export function unregisterSSE(userId: string, controller: ReadableStreamDefaultController) {
-  sseClients.get(userId)?.delete(controller);
-}
-
-function pushSSE(userId: string, data: unknown) {
-  const clients = sseClients.get(userId);
-  if (!clients) return;
-  const payload = `data: ${JSON.stringify(data)}\n\n`;
-  clients.forEach((c) => {
-    try {
-      c.enqueue(new TextEncoder().encode(payload));
-    } catch {
-      clients.delete(c);
-    }
-  });
-}
+import { publishToUsers } from './realtime';
 
 export async function notify(input: {
   userId: string;
@@ -43,7 +20,7 @@ export async function notify(input: {
       body: input.body,
     },
   });
-  pushSSE(input.userId, notification);
+  publishToUsers([input.userId], 'notification', notification);
   if (input.email) {
     const user = await prisma.user.findUnique({ where: { id: input.userId } });
     if (user) await sendEmail(user.email, input.title, input.body);

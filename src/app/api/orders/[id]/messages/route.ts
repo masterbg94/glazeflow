@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { notify } from '@/lib/notifications';
+import { publishToUsers } from '@/lib/realtime';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -46,10 +47,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           },
         })
       : await prisma.user.findMany({ where: { customerOrgId: order.customerOrgId } });
-  for (const r of recipients) {
-    if (r.id === user.id) continue;
+
+  const recipientIds = [...new Set(recipients.map((r) => r.id).filter((rid) => rid !== user.id))];
+
+  // Push the new message to everyone else on the order in real time.
+  publishToUsers(recipientIds, 'message:add', { orderId: order.id, message });
+
+  for (const rid of recipientIds) {
     await notify({
-      userId: r.id,
+      userId: rid,
       event: 'ORDER_MESSAGE',
       title: `Message on order ${order.orderNumber}`,
       body: `${user.name}: ${body.slice(0, 120)}...`,

@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useNotifications } from "@/components/notifications/NotificationProvider";
 
 interface Order {
   id: string;
@@ -18,24 +19,59 @@ interface Order {
 const COLUMNS = ["NEW", "QUOTE_AMENDMENT", "CONFIRMED", "IN_PRODUCTION", "READY", "DELIVERED", "CLOSED", "CANCELLED"];
 
 export function OrderKanban({ orders }: { orders: Order[] }) {
+  const { subscribeRealtime } = useNotifications();
+  const [board, setBoard] = useState<Order[]>(orders);
   const [updating, setUpdating] = useState<string | null>(null);
+
+  // Stay in sync when the order list changes server-side (e.g. after navigation).
+  useEffect(() => {
+    setBoard(orders);
+  }, [orders]);
+
+  // Live status changes from other users arrive over SSE — move the card, no reload.
+  useEffect(() => {
+    const unsub = subscribeRealtime((e) => {
+      if (e.event !== "order:update") return;
+      const updated = e.payload.order;
+      setBoard((prev) =>
+        prev.map((o) =>
+          o.id === updated.id
+            ? { ...o, status: updated.status, customerNotes: (updated as any).customerNotes ?? o.customerNotes, shippingAddress: (updated as any).shippingAddress ?? o.shippingAddress }
+            : o
+        )
+      );
+    });
+    return unsub;
+  }, [subscribeRealtime]);
 
   async function updateStatus(orderId: string, status: string) {
     setUpdating(orderId);
-    const res = await fetch(`/api/orders/${orderId}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    if (res.ok) window.location.reload();
-    setUpdating(null);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBoard((prev) =>
+          prev.map((o) =>
+            o.id === orderId
+              ? { ...o, status: data.order.status }
+              : o
+          )
+        );
+      }
+    } finally {
+      setUpdating(null);
+    }
   }
 
   return (
     <div className="h-full overflow-x-auto">
       <div className="flex h-full min-w-max gap-4">
         {COLUMNS.map((col) => {
-          const filtered = orders.filter((o) => o.status === col);
+          const filtered = board.filter((o) => o.status === col);
           return (
             <div key={col} className="flex w-72 flex-col rounded-xl bg-slate-100 p-3">
               <h3 className="mb-3 shrink-0 px-1 text-sm font-semibold text-slate-700">
@@ -64,7 +100,7 @@ export function OrderKanban({ orders }: { orders: Order[] }) {
                     )}
                     <select
                       className="mt-2 w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                      value={col}
+                      value={o.status}
                       onChange={(e) => updateStatus(o.id, e.target.value)}
                       disabled={updating === o.id}
                     >
