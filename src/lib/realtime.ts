@@ -1,9 +1,5 @@
 import type { ReadableStreamDefaultController } from 'stream/web';
-
-export type RealtimeEvent =
-  | 'notification'
-  | 'message:add'
-  | 'order:update';
+import type { ServerRealtimeEvent, NotificationPayload, MessageAddPayload, OrderUpdatePayload, ServerEventPayload } from './events';
 
 const encoder = new TextEncoder();
 
@@ -46,7 +42,33 @@ function sendTo(userId: string, data: unknown) {
   }
 }
 
-export function publishToUsers(userIds: string[], event: RealtimeEvent, payload: unknown) {
-  const data = { event, payload };
+/**
+ * Publish a real-time event to specific users.
+ * Called from API routes / server actions only.
+ * @param userIds - Array of user IDs to send the event to
+ * @param event - Event type ('notification' | 'message:add' | 'order:update')
+ * @param payload - Event payload (userId is NOT included, it's the routing key)
+ */
+export function publishToUsers<E extends ServerRealtimeEvent['event']>(
+  userIds: string[],
+  event: E,
+  payload: ServerEventPayload<E>
+) {
+  const data = { event, payload } as ServerRealtimeEvent;
   for (const userId of new Set(userIds)) sendTo(userId, data);
+}
+
+/**
+ * Get connected client count for a user (useful for health checks).
+ */
+export function getClientCount(userId: string): number {
+  return sseClients.get(userId)?.size ?? 0;
+}
+
+/**
+ * Check if user has active SSE connection.
+ */
+export function isUserConnected(userId: string): boolean {
+  const clients = sseClients.get(userId);
+  return clients !== undefined && clients.size > 0;
 }

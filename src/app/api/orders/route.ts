@@ -27,6 +27,13 @@ export async function POST(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const user = session.user as any;
 
+  if (user.platformRole !== 'CUSTOMER') {
+    return NextResponse.json({ error: 'Only customers can create orders' }, { status: 403 });
+  }
+  if (!user.customerOrgId) {
+    return NextResponse.json({ error: 'Session missing customerOrgId — please log out and log in again' }, { status: 401 });
+  }
+
   const body = await req.json();
   const { companyId, items, shippingAddress, customerNotes, requestedDate } = body;
 
@@ -37,6 +44,9 @@ export async function POST(req: NextRequest) {
     where: { id: user.customerOrgId },
     include: { priceList: true },
   });
+  if (!customerOrg) {
+    return NextResponse.json({ error: 'Customer org not found — please log out and log in again' }, { status: 401 });
+  }
   const discountPercent = customerOrg?.priceList?.discountPercent
     ? Number(customerOrg.priceList.discountPercent)
     : 0;

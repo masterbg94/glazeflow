@@ -1,4 +1,5 @@
 "use client";
+
 import {
   createContext,
   useContext,
@@ -7,16 +8,8 @@ import {
   useRef,
   useState,
 } from "react";
-
-export interface RealtimeMessageEvent {
-  event: "message:add";
-  payload: { orderId: string; message: { id: string } & Record<string, unknown> };
-}
-export interface RealtimeOrderUpdateEvent {
-  event: "order:update";
-  payload: { orderId: string; order: { id: string; status: string } & Record<string, unknown> };
-}
-export type RealtimeEvent = RealtimeMessageEvent | RealtimeOrderUpdateEvent;
+import { useRealtime } from "@/components/realtime/RealtimeProvider";
+import type { ClientRealtimeEvent, ClientNotificationEvent } from "@/lib/events";
 
 interface Notification {
   id: string;
@@ -26,13 +19,15 @@ interface Notification {
   createdAt: string;
   orderId?: string | null;
 }
+
 interface CtxValue {
   notifications: Notification[];
   unread: number;
   markRead: (id: string) => void;
   clearAll: () => void;
-  subscribeRealtime: (handler: (e: RealtimeEvent) => void) => () => void;
+  subscribeRealtime: (handler: (e: ClientRealtimeEvent) => void) => () => void;
 }
+
 const Ctx = createContext<CtxValue>({
   notifications: [],
   unread: 0,
@@ -43,32 +38,30 @@ const Ctx = createContext<CtxValue>({
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const handlersRef = useRef(new Set<(e: RealtimeEvent) => void>());
+  const { subscribe } = useRealtime();
 
+  // Initial fetch
   useEffect(() => {
     fetch("/api/notifications")
       .then((r) => r.json())
       .then((d) => setNotifications(d.notifications || []))
       .catch(() => {});
-
-    const es = new EventSource("/api/notifications/stream");
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.type === "connected") return;
-        if (data.event === "notification") {
-          setNotifications((prev) => {
-            if (prev.some((n) => n.id === data.payload.id)) return prev;
-            return [data.payload, ...prev];
-          });
-        } else if (data.event === "message:add" || data.event === "order:update") {
-          handlersRef.current.forEach((h) => h(data as RealtimeEvent));
-        }
-      } catch {}
-    };
-
-    return () => es.close();
   }, []);
+
+  // Subscribe to real-time events from RealtimeProvider
+  useEffect(() => {
+    const unsub = subscribe((event: ClientRealtimeEvent) => {
+      if (event.event === "notification") {
+        const notificationEvent = event as ClientNotificationEvent;
+        setNotifications((prev) => {
+          if (prev.some((n) => n.id === notificationEvent.payload.id)) return prev;
+          return [notificationEvent.payload, ...prev];
+        });
+      }
+      // message:add and order:update are handled by other components via subscribeRealtime
+    });
+    return unsub;
+  }, [subscribe]);
 
   function markRead(id: string) {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
@@ -87,11 +80,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       markRead,
       clearAll,
       subscribeRealtime(handler) {
-        handlersRef.current.add(handler);
-        return () => handlersRef.current.delete(handler);
+        return subscribe((e) => {
+          if (e.event === "message:add" || e.event === "order:update") {
+            handler(e);
+          }
+        });
       },
     }),
-    [notifications]
+    [notifications, subscribe]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

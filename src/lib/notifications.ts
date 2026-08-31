@@ -2,6 +2,7 @@ import { NotificationEvent } from '@prisma/client';
 import { sendEmail } from './email';
 import { prisma } from './prisma';
 import { publishToUsers } from './realtime';
+import type { NotificationPayload } from './events';
 
 export async function notify(input: {
   userId: string;
@@ -20,7 +21,8 @@ export async function notify(input: {
       body: input.body,
     },
   });
-  publishToUsers([input.userId], 'notification', notification);
+  const payload: NotificationPayload = { notification };
+  publishToUsers([input.userId], 'notification', payload);
   if (input.email) {
     const user = await prisma.user.findUnique({ where: { id: input.userId } });
     if (user) await sendEmail(user.email, input.title, input.body);

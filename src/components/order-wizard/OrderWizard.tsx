@@ -173,10 +173,6 @@ export function OrderWizard({
     setLoading(true);
 
     try {
-      const sessionResponse = await fetch("/api/auth/session");
-      const session = sessionResponse.ok ? await sessionResponse.json() : null;
-      if (!session?.user || (session.user as any).platformRole !== "CUSTOMER") return;
-
       const orderItems = cart.map((item) => {
         const glassPanes = ["GLASS_ONLY", "FINISHED_WINDOW", "FINISHED_DOOR"].includes(item.kind)
           ? item.paneThicknesses
@@ -210,6 +206,7 @@ export function OrderWizard({
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           companyId,
           items: orderItems,
@@ -220,8 +217,15 @@ export function OrderWizard({
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        alert("Order submission failed: " + (err.error || "Unknown error"));
+        const text = await res.text();
+        let errMsg = `HTTP ${res.status}`;
+        try {
+          const err = JSON.parse(text);
+          errMsg = err.error || errMsg;
+        } catch {
+          if (text) errMsg = text.slice(0, 200);
+        }
+        alert("Order submission failed: " + errMsg);
         return;
       }
 
@@ -230,6 +234,8 @@ export function OrderWizard({
       setCustomerNotes("");
       setRequestedDate(null);
       router.push("/my-orders");
+    } catch (err) {
+      alert("Order submission failed: " + (err instanceof Error ? err.message : "Unknown error"));
     } finally {
       setLoading(false);
     }
