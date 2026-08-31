@@ -4,10 +4,25 @@ import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
+// Customers sign in from their company storefront (e.g. acme.localhost:3000)
+// and must land on /<slug>/my-orders — /dashboard is a company-staff route that
+// does not exist under the storefront and 404s on a subdomain host. Root host
+// (localhost:3000) keeps the default /dashboard target.
+function getCustomerRedirect(): string {
+  if (typeof window === 'undefined') return '/dashboard';
+  const host = window.location.hostname.split(':')[0];
+  const rootHost = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000').split(':')[0];
+  if (host === rootHost || host === 'localhost' || host === '127.0.0.1' || host === `www.${rootHost}`) {
+    return '/dashboard';
+  }
+  const slug = host.replace(`.${rootHost}`, '').replace(rootHost, '');
+  return slug ? `/${slug}/my-orders` : '/dashboard';
+}
+
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const callback = params.get('callbackUrl') || '/dashboard';
+  const callback = params.get('callbackUrl');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -21,7 +36,13 @@ function LoginForm() {
     setLoading(false);
     if (res?.error) setError('Invalid email or password');
     else {
-      router.push(callback);
+      // Honour an explicit callbackUrl only when it is a subdomain-scoped path;
+      // otherwise fall back to the customer redirect computed from the host.
+      const target =
+        callback && callback.startsWith('/') && !callback.startsWith('/dashboard')
+          ? callback
+          : getCustomerRedirect();
+      router.push(target);
       router.refresh();
     }
   }
