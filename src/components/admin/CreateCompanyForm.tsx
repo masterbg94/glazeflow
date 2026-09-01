@@ -10,7 +10,11 @@ import { useState } from 'react';
  * Creating one here is enough to make the storefront live — no separate
  * infrastructure per tenant.
  */
-export function CreateCompanyForm() {
+interface CreateCompanyFormProps {
+  onSuccess?: () => void;
+}
+
+export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [email, setEmail] = useState('');
@@ -41,6 +45,7 @@ export function CreateCompanyForm() {
       setSlug('');
       setEmail('');
       setTagline('');
+      onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
