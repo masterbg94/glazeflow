@@ -7,9 +7,9 @@ import { LayoutDashboard, Package, ClipboardList, LogOut } from "lucide-react";
 export function Sidebar() {
   const pathname = usePathname();
   const links = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/dashboard/catalog", label: "Catalog & Pricing", icon: Package },
-    { href: "/dashboard/orders", label: "Orders", icon: ClipboardList },
+    { href: "/dashboard", label: "Kontrolna tabla", icon: LayoutDashboard },
+    { href: "/dashboard/catalog", label: "Katalog i cene", icon: Package },
+    { href: "/dashboard/orders", label: "Narudžbine", icon: ClipboardList },
   ];
 
   return (
@@ -38,7 +38,7 @@ export function Sidebar() {
           onClick={() => signOut({ callbackUrl: "/login" })}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
         >
-          <LogOut size={16} /> Sign out
+          <LogOut size={16} /> Odjava
         </button>
       </div>
     </aside>

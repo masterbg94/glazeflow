@@ -40,33 +40,33 @@ export default function CatalogPage() {
       return (
         <div className="grid grid-cols-2 gap-3">
           <input
-            placeholder="Name"
+            placeholder="Naziv"
             className="input"
             value={form.name || ''}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
           <input
-            placeholder="Category (float/tempered/lowE/...)"
+            placeholder="Kategorija (float/tempered/lowE/...)"
             className="input"
             value={form.category || ''}
             onChange={(e) => setForm({ ...form, category: e.target.value })}
           />
           <input
-            placeholder="Sell price per m²"
+            placeholder="Prodajna cena po m²"
             type="number"
             className="input"
             value={form.sellPricePerSqm || ''}
             onChange={(e) => setForm({ ...form, sellPricePerSqm: +e.target.value })}
           />
           <input
-            placeholder="Cost price per m²"
+            placeholder="Nabavna cena po m²"
             type="number"
             className="input"
             value={form.costPricePerSqm || ''}
             onChange={(e) => setForm({ ...form, costPricePerSqm: +e.target.value })}
           />
           <input
-            placeholder="Available thickness (comma: 4,5,6)"
+            placeholder="Dostupne debljine (zarez: 4,5,6)"
             className="input"
             value={(form.availableThicknessMm || []).join(',')}
             onChange={(e) =>
@@ -80,47 +80,47 @@ export default function CatalogPage() {
       return (
         <div className="grid grid-cols-2 gap-3">
           <input
-            placeholder="Brand"
+            placeholder="Brend"
             className="input"
             value={form.brand || ''}
             onChange={(e) => setForm({ ...form, brand: e.target.value })}
           />
           <input
-            placeholder="System name"
+            placeholder="Naziv sistema"
             className="input"
             value={form.systemName || ''}
             onChange={(e) => setForm({ ...form, systemName: e.target.value })}
           />
           <input
-            placeholder="Chamber count"
+            placeholder="Broj komora"
             type="number"
             className="input"
             value={form.chamberCount || ''}
             onChange={(e) => setForm({ ...form, chamberCount: +e.target.value })}
           />
           <input
-            placeholder="Install depth mm"
+            placeholder="Dubina ugradnje mm"
             type="number"
             className="input"
             value={form.installDepthMm || ''}
             onChange={(e) => setForm({ ...form, installDepthMm: +e.target.value })}
           />
           <input
-            placeholder="Sell per meter"
+            placeholder="Prodajna cena po metru"
             type="number"
             className="input"
             value={form.sellPricePerMeter || ''}
             onChange={(e) => setForm({ ...form, sellPricePerMeter: +e.target.value })}
           />
           <input
-            placeholder="Cost per meter"
+            placeholder="Nabavna cena po metru"
             type="number"
             className="input"
             value={form.costPricePerMeter || ''}
             onChange={(e) => setForm({ ...form, costPricePerMeter: +e.target.value })}
           />
           <input
-            placeholder="Colors (comma)"
+            placeholder="Boje (zarezom)"
             className="input"
             value={(form.colorOptions || []).join(',')}
             onChange={(e) => setForm({ ...form, colorOptions: e.target.value.split(',') })}
@@ -131,35 +131,35 @@ export default function CatalogPage() {
     return (
       <div className="grid grid-cols-2 gap-3">
         <input
-          placeholder="Name"
+          placeholder="Naziv"
           className="input"
           value={form.name || ''}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
         />
         <input
-          placeholder="Category"
+          placeholder="Kategorija"
           className="input"
           value={form.category || ''}
           onChange={(e) => setForm({ ...form, category: e.target.value })}
         />
         <input
-          placeholder="Sell price"
+          placeholder="Prodajna cena"
           type="number"
           className="input"
           value={form.sellPrice || ''}
           onChange={(e) => setForm({ ...form, sellPrice: +e.target.value })}
         />
         <input
-          placeholder="Cost price"
+          placeholder="Nabavna cena"
           type="number"
           className="input"
           value={form.costPrice || ''}
           onChange={(e) => setForm({ ...form, costPrice: +e.target.value })}
         />
         <input
-          placeholder="Unit (piece/meter)"
+          placeholder="Jedinica (komad/metar)"
           className="input"
-          value={form.unit || 'piece'}
+          value={form.unit || 'komad'}
           onChange={(e) => setForm({ ...form, unit: e.target.value })}
         />
       </div>
@@ -169,9 +169,9 @@ export default function CatalogPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Catalog & Pricing</h1>
+        <h1 className="text-2xl font-bold">Katalog i cene</h1>
         <button onClick={() => setShowForm(!showForm)} className="btn bg-blue-600 text-white">
-          {showForm ? 'Cancel' : 'Add Item'}
+          {showForm ? 'Otkaži' : 'Dodaj stavku'}
         </button>
       </div>
       <div className="flex gap-2 border-b border-slate-200">
@@ -181,27 +181,27 @@ export default function CatalogPage() {
             onClick={() => setTab(t)}
             className={`border-b-2 px-4 py-2 text-sm font-medium ${tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`}
           >
-            {t}
+            {t === 'glass' ? 'Staklo' : t === 'profiles' ? 'Profili' : 'Oprema'}
           </button>
         ))}
       </div>
       {showForm && (
         <form onSubmit={createItem} className="rounded-xl border border-slate-200 bg-white p-6">
-          <h3 className="mb-4 font-semibold">Create {tab} item</h3>
+          <h3 className="mb-4 font-semibold">Kreiraj {tab === 'glass' ? 'staklo' : tab === 'profiles' ? 'profil' : 'opremu'} stavku</h3>
           {renderForm()}
-          <button className="btn mt-4 bg-blue-600 text-white">Save</button>
+          <button className="btn mt-4 bg-blue-600 text-white">Sačuvaj</button>
         </form>
       )}
       <div className="rounded-xl border border-slate-200 bg-white">
         {loading ? (
-          <p className="p-4">Loading...</p>
+          <p className="p-4">Učitavanje...</p>
         ) : (
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left">
               <tr>
-                <th className="p-4">Name</th>
-                <th className="p-4">Price</th>
-                <th className="p-4">Active</th>
+                <th className="p-4">Naziv</th>
+                <th className="p-4">Cena</th>
+                <th className="p-4">Aktivno</th>
               </tr>
             </thead>
             <tbody>
@@ -211,7 +211,7 @@ export default function CatalogPage() {
                   <td className="p-4">
                     {item.sellPricePerSqm || item.sellPricePerMeter || item.sellPrice}
                   </td>
-                  <td className="p-4">{item.isActive ? 'Yes' : 'No'}</td>
+                  <td className="p-4">{item.isActive ? 'Da' : 'Ne'}</td>
                 </tr>
               ))}
             </tbody>

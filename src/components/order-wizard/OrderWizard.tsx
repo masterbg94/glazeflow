@@ -246,7 +246,7 @@ export function OrderWizard({
       <div className="space-y-6 lg:col-span-2">
         {/* Step 1: Product kind */}
         <section className="rounded-xl border border-slate-200 bg-white p-6">
-          <h3 className="mb-4 font-semibold">1. What do you need?</h3>
+          <h3 className="mb-4 font-semibold">1. Šta vam treba?</h3>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {(["FINISHED_WINDOW", "FINISHED_DOOR", "GLASS_ONLY", "RAW_PROFILE"] as Kind[]).map((k) => (
               <button
@@ -265,15 +265,15 @@ export function OrderWizard({
         {/* Step 2: Dimensions */}
         {["GLASS_ONLY", "FINISHED_WINDOW", "FINISHED_DOOR"].includes(kind) && (
           <section className="rounded-xl border border-slate-200 bg-white p-6">
-            <h3 className="mb-4 font-semibold">2. Dimensions (mm)</h3>
+            <h3 className="mb-4 font-semibold">2. Dimenzije (mm)</h3>
             <div className="grid grid-cols-3 gap-4">
-              <Field label="Width (mm)">
+              <Field label="Širina (mm)">
                 <input type="number" value={width} onChange={(e) => setWidth(+e.target.value)} className="input" />
               </Field>
-              <Field label="Height (mm)">
+              <Field label="Visina (mm)">
                 <input type="number" value={height} onChange={(e) => setHeight(+e.target.value)} className="input" />
               </Field>
-              <Field label="Quantity">
+              <Field label="Količina">
                 <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(+e.target.value)} className="input" />
               </Field>
             </div>
@@ -282,12 +282,12 @@ export function OrderWizard({
 
         {kind === "RAW_PROFILE" && (
           <section className="rounded-xl border border-slate-200 bg-white p-6">
-            <h3 className="mb-4 font-semibold">2. Profile length (m)</h3>
+            <h3 className="mb-4 font-semibold">2. Dužina profila (m)</h3>
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Length (m)">
+              <Field label="Dužina (m)">
                 <input type="number" min={0.1} step={0.1} value={lengthM} onChange={(e) => setLengthM(+e.target.value)} className="input" />
               </Field>
-              <Field label="Quantity">
+              <Field label="Količina">
                 <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(+e.target.value)} className="input" />
               </Field>
             </div>
@@ -297,9 +297,9 @@ export function OrderWizard({
         {/* Step 3: Template */}
         {["FINISHED_WINDOW", "FINISHED_DOOR"].includes(kind) && (
           <section className="rounded-xl border border-slate-200 bg-white p-6">
-            <h3 className="mb-4 font-semibold">3. Product Template</h3>
+            <h3 className="mb-4 font-semibold">3. Šablon proizvoda</h3>
             <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className="input">
-              <option value="">Select...</option>
+              <option value="">Izaberite...</option>
               {templates.filter((t) => t.kind === kind).map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
@@ -310,9 +310,9 @@ export function OrderWizard({
         {/* Step 4: Profile */}
         {kind !== "GLASS_ONLY" && kind !== "HARDWARE" && (
           <section className="rounded-xl border border-slate-200 bg-white p-6">
-            <h3 className="mb-4 font-semibold">4. PVC Profile</h3>
+            <h3 className="mb-4 font-semibold">4. PVC Profil</h3>
             <select value={profileId} onChange={(e) => setProfileId(e.target.value)} className="input mb-3">
-              <option value="">Select profile system...</option>
+              <option value="">Izaberite sistem profila...</option>
               {profiles.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.brand} {p.systemName} — {p.chamberCount}ch {p.installDepthMm}mm
@@ -332,9 +332,9 @@ export function OrderWizard({
         {/* Step 5: Glass */}
         {["GLASS_ONLY", "FINISHED_WINDOW", "FINISHED_DOOR"].includes(kind) && (
           <section className="rounded-xl border border-slate-200 bg-white p-6">
-            <h3 className="mb-4 font-semibold">5. Glass</h3>
+            <h3 className="mb-4 font-semibold">5. Staklo</h3>
             <select value={glassTypeId} onChange={(e) => setGlassTypeId(e.target.value)} className="input mb-3">
-              <option value="">Select glass type...</option>
+              <option value="">Izaberite tip stakla...</option>
               {glassTypes.map((g) => (
                 <option key={g.id} value={g.id}>{g.name} ({g.category})</option>
               ))}
@@ -356,7 +356,7 @@ export function OrderWizard({
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   {layers !== "SINGLE" && (
-                    <Field label="Pane 1 (mm)">
+                    <Field label="Staklo 1 (mm)">
                       <select value={pane1} onChange={(e) => setPane1(+e.target.value)} className="input">
                         {(selectedGlass.availableThicknessMm as any)?.map((t: number) => (
                           <option key={t} value={t}>{t}mm</option>
@@ -365,7 +365,7 @@ export function OrderWizard({
                     </Field>
                   )}
                   {layers === "DOUBLE" && (
-                    <Field label="Pane 2 (mm)">
+                    <Field label="Staklo 2 (mm)">
                       <select value={pane2} onChange={(e) => setPane2(+e.target.value)} className="input">
                         {(selectedGlass.availableThicknessMm as any)?.map((t: number) => (
                           <option key={t} value={t}>{t}mm</option>
@@ -375,14 +375,14 @@ export function OrderWizard({
                   )}
                   {layers === "TRIPLE" && (
                     <>
-                      <Field label="Pane 2 (mm)">
+                      <Field label="Staklo 2 (mm)">
                         <select value={pane2} onChange={(e) => setPane2(+e.target.value)} className="input">
                           {(selectedGlass.availableThicknessMm as any)?.map((t: number) => (
                             <option key={t} value={t}>{t}mm</option>
                           ))}
                         </select>
                       </Field>
-                      <Field label="Pane 3 (mm)">
+                      <Field label="Staklo 3 (mm)">
                         <select value={pane3} onChange={(e) => setPane3(+e.target.value)} className="input">
                           {(selectedGlass.availableThicknessMm as any)?.map((t: number) => (
                             <option key={t} value={t}>{t}mm</option>
@@ -399,7 +399,7 @@ export function OrderWizard({
 
         {/* Step 6: Hardware */}
         <section className="rounded-xl border border-slate-200 bg-white p-6">
-          <h3 className="mb-4 font-semibold">6. Hardware / Accessories</h3>
+          <h3 className="mb-4 font-semibold">6. Oprema / Dodaci</h3>
           <div className="space-y-2">
             {hardwareItems.map((h) => (
               <label key={h.id} className="flex items-center justify-between rounded-lg border border-slate-100 p-3">
@@ -418,7 +418,7 @@ export function OrderWizard({
 
         {/* Step 7: Processing */}
         <section className="rounded-xl border border-slate-200 bg-white p-6">
-          <h3 className="mb-4 font-semibold">7. Processing Options</h3>
+          <h3 className="mb-4 font-semibold">7. Opcije obrade</h3>
           <div className="space-y-2">
             {processingOptions.map((o) => (
               <label key={o.id} className="flex items-center gap-3 rounded-lg border border-slate-100 p-3">
@@ -440,12 +440,12 @@ export function OrderWizard({
           <button
             onClick={addToCart}
             className="btn w-full bg-blue-600 text-white hover:opacity-90 mb-4">
-            Add to Order ({cart.length} items)
+            Dodaj u narudžbinu ({cart.length} stavki)
           </button>
 
           {cart.length > 0 && (
             <div className="mt-4 rounded-xl border border-blue-600 bg-blue-50/50 p-4">
-              <h4 className="text-sm font-semibold">Order summary ({cart.length} lines)</h4>
+              <h4 className="text-sm font-semibold">Pregled narudžbine ({cart.length} stavki)</h4>
               <div className="mt-2 space-y-1 text-xs text-slate-600">
                 {cart.map((c, i) => (
                   <div key={i} className="flex justify-between">

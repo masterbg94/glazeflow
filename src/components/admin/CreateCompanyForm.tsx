@@ -36,18 +36,18 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || `Failed (${res.status})`);
+        setError(data.error || `Neuspešno (${res.status})`);
         return;
       }
       const data = await res.json();
-      setSuccess(`Created "${data.company.name}" (slug: ${data.company.slug})`);
+      setSuccess(`Kreirano "${data.company.name}" (slug: ${data.company.slug})`);
       setName('');
       setSlug('');
       setEmail('');
       setTagline('');
       onSuccess?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof Error ? err.message : 'Nepoznata greška');
     } finally {
       setSubmitting(false);
     }
@@ -58,7 +58,7 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">
-            Company name *
+            Naziv kompanije *
           </label>
           <input
             value={name}
@@ -69,7 +69,7 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">
-            Slug / subdomain *
+            Slug / poddomen *
           </label>
           <div className="flex items-center rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-500">
             <input
@@ -86,7 +86,7 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">
-            Contact email
+            Kontakt email
           </label>
           <input
             type="email"
@@ -97,7 +97,7 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">
-            Tagline
+            Slogan
           </label>
           <input
             value={tagline}
@@ -113,7 +113,7 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
         disabled={submitting}
         className="btn bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
       >
-        {submitting ? 'Creating…' : 'Create tenant'}
+        {submitting ? 'Kreiranje…' : 'Kreiraj tenant'}
       </button>
     </form>
   );

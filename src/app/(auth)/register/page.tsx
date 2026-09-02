@@ -20,10 +20,10 @@ export default function RegisterPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="mb-6 text-2xl font-bold">Create your account</h1>
+        <h1 className="mb-6 text-2xl font-bold">Kreirajte svoj nalog</h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Full name</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Puno ime</label>
             <input
               className="input"
               value={form.name}
@@ -42,7 +42,7 @@ export default function RegisterPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Lozinka</label>
             <input
               type="password"
               className="input"
@@ -52,7 +52,7 @@ export default function RegisterPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Supplier slug</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Slug dobavljača</label>
             <input
               className="input"
               value={form.companySlug}
@@ -61,7 +61,7 @@ export default function RegisterPage() {
             />
           </div>
           <button className="btn w-full bg-blue-600 text-white hover:bg-blue-700">
-            Create account
+            Kreiraj nalog
           </button>
         </form>
       </div>

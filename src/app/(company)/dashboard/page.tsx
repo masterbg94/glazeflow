@@ -31,12 +31,12 @@ export default async function DashboardHome() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Total Orders" value={totalOrders} />
-        <StatCard label="New Orders" value={newOrders} />
-        <StatCard label="Revenue" value={totalRevenue._sum.total?.toString() ?? '0'} />
+        <StatCard label="Ukupno narudžbina" value={totalOrders} />
+        <StatCard label="Nove narudžbine" value={newOrders} />
+        <StatCard label="Prihod" value={totalRevenue._sum.total?.toString() ?? '0'} />
       </div>
       <div className="rounded-xl border border-slate-200 bg-white">
-        <h2 className="border-b border-slate-200 p-4 font-semibold">Recent Orders</h2>
+        <h2 className="border-b border-slate-200 p-4 font-semibold">Nedavne narudžbine</h2>
         <div className="divide-y divide-slate-100">
           {serializedOrders.map((o) => (
             <div key={o.id} className="flex items-center justify-between p-4">
