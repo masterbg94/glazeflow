@@ -17,19 +17,34 @@ async function main() {
     },
   });
 
-  const acme = await prisma.company.create({
-    data: {
+  const acme = await prisma.company.upsert({
+    where: { slug: 'acme' },
+    update: {
+      currency: 'RSD',
+      taxRatePercent: 20,
+      defaultMarkupPercent: 25,
+      address: 'Bulevar kralja Aleksandra 10, 11000 Beograd',
+    },
+    create: {
       name: 'Akme Staklo & PVC Sistemi',
       slug: 'acme',
       tagline: 'Precizno staklo i PVC proizvedeno u EU',
       primaryColor: '#1d4ed8',
       secondaryColor: '#0f172a',
       accentColor: '#f59e0b',
-      currency: 'USD',
-      taxRatePercent: 8,
+      currency: 'RSD',
+      taxRatePercent: 20,
       defaultMarkupPercent: 25,
+      address: 'Bulevar kralja Aleksandra 10, 11000 Beograd',
     },
   });
+
+  // Idempotent: if the company already has users, only update settings and exit.
+  const existingUsers = await prisma.user.count({ where: { companyId: acme.id } });
+  if (existingUsers > 0) {
+    console.log('✅ Kompanija već postoji — preskačem seed kataloga.');
+    return;
+  }
 
   await prisma.user.create({
     data: {
@@ -49,8 +64,8 @@ async function main() {
         category: 'float',
         availableThicknessMm: [4, 5, 6, 8],
         baseThicknessMm: 4,
-        costPricePerSqm: 22,
-        sellPricePerSqm: 32,
+        costPricePerSqm: 2400,
+        sellPricePerSqm: 3500,
       },
       {
         companyId: acme.id,
@@ -58,8 +73,8 @@ async function main() {
         category: 'tempered',
         availableThicknessMm: [4, 5, 6, 8, 10, 12],
         baseThicknessMm: 4,
-        costPricePerSqm: 34,
-        sellPricePerSqm: 49,
+        costPricePerSqm: 3700,
+        sellPricePerSqm: 5400,
         isSafetyGlass: true,
       },
       {
@@ -68,8 +83,8 @@ async function main() {
         category: 'lowE',
         availableThicknessMm: [4, 6, 8],
         baseThicknessMm: 4,
-        costPricePerSqm: 38,
-        sellPricePerSqm: 55,
+        costPricePerSqm: 4200,
+        sellPricePerSqm: 6000,
         isLowE: true,
       },
       {
@@ -78,8 +93,8 @@ async function main() {
         category: 'laminated',
         availableThicknessMm: [6, 8, 10, 12],
         baseThicknessMm: 6,
-        costPricePerSqm: 46,
-        sellPricePerSqm: 68,
+        costPricePerSqm: 5000,
+        sellPricePerSqm: 7400,
         isSafetyGlass: true,
         soundReductionDb: 38,
       },
@@ -97,8 +112,8 @@ async function main() {
         wallThicknessClass: 'A',
         colorOptions: ['Bel', 'Antracit siva', 'Zlatni dub', 'Crna'],
         maxGlassThicknessMm: 40,
-        costPricePerMeter: 18,
-        sellPricePerMeter: 27,
+        costPricePerMeter: 1950,
+        sellPricePerMeter: 2900,
       },
       {
         companyId: acme.id,
@@ -109,8 +124,8 @@ async function main() {
         wallThicknessClass: 'A',
         colorOptions: ['Bel', 'Krem', 'Siva'],
         maxGlassThicknessMm: 41,
-        costPricePerMeter: 16,
-        sellPricePerMeter: 24,
+        costPricePerMeter: 1750,
+        sellPricePerMeter: 2600,
       },
     ],
   });
@@ -121,23 +136,26 @@ async function main() {
         companyId: acme.id,
         name: 'Rukavica za nagib i okretanje',
         category: 'ruka',
-        costPrice: 8,
-        sellPrice: 14,
+        costPrice: 900,
+        sellPrice: 1500,
+        applicableKinds: ['FINISHED_WINDOW', 'FINISHED_DOOR'],
       },
       {
         companyId: acme.id,
         name: 'Više tačkovni zaključak',
         category: 'zaključak',
-        costPrice: 22,
-        sellPrice: 36,
+        costPrice: 2400,
+        sellPrice: 3900,
+        applicableKinds: ['FINISHED_WINDOW', 'FINISHED_DOOR'],
       },
       {
         companyId: acme.id,
         name: 'Aluminijski prag',
         category: 'prag',
         unit: 'meter',
-        costPrice: 15,
-        sellPrice: 25,
+        costPrice: 1600,
+        sellPrice: 2700,
+        applicableKinds: ['FINISHED_DOOR'],
       },
     ],
   });
@@ -184,9 +202,27 @@ async function main() {
 
   await prisma.processingOption.createMany({
     data: [
-      { companyId: acme.id, name: 'Poliranje ivica', costPrice: 5, sellPrice: 9 },
-      { companyId: acme.id, name: 'Bušenje rupe', costPrice: 3, sellPrice: 6 },
-      { companyId: acme.id, name: 'Prilagođeni rez oblika', costPrice: 12, sellPrice: 20 },
+      {
+        companyId: acme.id,
+        name: 'Poliranje ivica',
+        costPrice: 550,
+        sellPrice: 1000,
+        applicableKinds: ['GLASS_ONLY'],
+      },
+      {
+        companyId: acme.id,
+        name: 'Bušenje rupe',
+        costPrice: 350,
+        sellPrice: 650,
+        applicableKinds: ['GLASS_ONLY'],
+      },
+      {
+        companyId: acme.id,
+        name: 'Prilagođeni rez oblika',
+        costPrice: 1300,
+        sellPrice: 2200,
+        applicableKinds: ['GLASS_ONLY', 'FINISHED_WINDOW', 'FINISHED_DOOR'],
+      },
     ],
   });
 
@@ -203,7 +239,7 @@ async function main() {
   const customerOrg = await prisma.customerOrg.create({
     data: {
       companyId: acme.id,
-      name: "Prozori i vrata Boba",
+      name: 'Prozori i vrata Boba',
       taxId: 'US-123456789',
       priceListId: defaultPL.id,
       shippingAddress: '123 Main St, Springfield',

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { SignOutButton } from '@/components/auth/SignOutButton';
+import { useNotifications } from '@/components/notifications/NotificationProvider';
 
 interface Company {
   id: string;
@@ -30,7 +31,8 @@ export default function CompanyDetailPage() {
   const params = useParams();
   const router = useRouter();
   const companyId = params.id as string;
-  
+  const { toast } = useNotifications();
+
   const [company, setCompany] = useState<Company | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +40,7 @@ export default function CompanyDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  
+
   const [formData, setFormData] = useState({
     email: '',
     name: '',
@@ -75,21 +77,21 @@ export default function CompanyDetailPage() {
     setSubmitting(true);
     setError(null);
     setSuccess(null);
-    
+
     try {
       const res = await fetch(`/api/companies/${companyId}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-      
+
       const data = await res.json();
-      
+
       if (!res.ok) {
         setError(data.error || 'Neuspešno dodavanje korisnika');
         return;
       }
-      
+
       setSuccess(`Korisnik ${data.user.name} dodat uspešno`);
       setFormData({ email: '', name: '', password: '', companyRole: 'COMPANY_ADMIN' });
       setShowAddUser(false);
@@ -102,22 +104,23 @@ export default function CompanyDetailPage() {
   }
 
   async function handleDeleteUser(userId: string, userName: string) {
-    if (!potvrdi(`Obriši korisnika "${userName}"? Ovo ne može biti poništeno.`)) return;
-    
+    if (!confirm(`Obriši korisnika "${userName}"? Ovo ne može biti poništeno.`)) return;
+
     try {
       const res = await fetch(`/api/companies/${companyId}/users/${userId}`, {
         method: 'DELETE',
       });
-      
+
       if (!res.ok) {
         const data = await res.json();
-        obavesti(data.error || 'Neuspešno brisanje korisnika');
+        toast(data.error || 'Neuspešno brisanje korisnika', 'error');
         return;
       }
-      
+
+      toast('Korisnik obrisan', 'success');
       fetchUsers();
     } catch (err) {
-      obavesti(err instanceof Error ? err.message : 'Nepoznata greška');
+      toast(err instanceof Error ? err.message : 'Nepoznata greška', 'error');
     }
   }
 
@@ -128,16 +131,17 @@ export default function CompanyDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !user.isActive }),
       });
-      
+
       if (!res.ok) {
         const data = await res.json();
-        obavesti(data.error || 'Neuspešno ažuriranje korisnika');
+        toast(data.error || 'Neuspešno ažuriranje korisnika', 'error');
         return;
       }
-      
+
+      toast(user.isActive ? 'Korisnik deaktiviran' : 'Korisnik aktiviran', 'success');
       fetchUsers();
     } catch (err) {
-      obavesti(err instanceof Error ? err.message : 'Nepoznata greška');
+      toast(err instanceof Error ? err.message : 'Nepoznata greška', 'error');
     }
   }
 
@@ -153,14 +157,14 @@ export default function CompanyDetailPage() {
     <div className="p-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <Link
-            href="/admin"
-            className="text-sm text-slate-500 hover:underline mb-2 inline-block"
-          >
+          <Link href="/admin" className="text-sm text-slate-500 hover:underline mb-2 inline-block">
             ← Nazad na kompanije
           </Link>
           <h1 className="text-2xl font-bold">{company.name}</h1>
-          <p className="text-slate-500">Slug: {company.slug} • {company._count.users} korisnika • {company._count.orders} narudžbina</p>
+          <p className="text-slate-500">
+            Slug: {company.slug} • {company._count.users} korisnika • {company._count.orders}{' '}
+            narudžbina
+          </p>
         </div>
         <SignOutButton />
       </div>
@@ -199,7 +203,10 @@ export default function CompanyDetailPage() {
         </div>
 
         {showAddUser && (
-          <form onSubmit={handleAddUser} className="p-6 border-b border-slate-200 bg-slate-50 space-y-4">
+          <form
+            onSubmit={handleAddUser}
+            className="p-6 border-b border-slate-200 bg-slate-50 space-y-4"
+          >
             <h3 className="font-semibold">Dodaj novog korisnika</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
@@ -246,7 +253,9 @@ export default function CompanyDetailPage() {
               </div>
             </div>
             {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>}
-            {success && <div className="rounded-lg bg-green-50 p-3 text-sm text-green-700">{success}</div>}
+            {success && (
+              <div className="rounded-lg bg-green-50 p-3 text-sm text-green-700">{success}</div>
+            )}
             <div className="flex gap-2">
               <button
                 type="submit"
@@ -305,12 +314,12 @@ export default function CompanyDetailPage() {
                       <button
                         onClick={() => handleToggleActive(u)}
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-                          u.isActive
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
+                          u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                         } hover:opacity-80`}
                       >
-                        <span className={`h-1.5 w-1.5 rounded-full ${u.isActive ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${u.isActive ? 'bg-green-500' : 'bg-red-500'}`}
+                        />
                         {u.isActive ? 'Aktivan' : 'Neaktivan'}
                       </button>
                     </td>

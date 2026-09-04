@@ -19,6 +19,9 @@ export default async function OrderPage({ params }: { params: Promise<{ companyS
     ...item,
     costPrice: Number(item.costPrice),
     sellPrice: Number(item.sellPrice),
+    applicableKinds: Array.isArray(item.applicableKinds)
+      ? (item.applicableKinds as string[])
+      : null,
   }));
   const productTemplates = company.productTemplates.map((item) => ({
     ...item,
@@ -28,6 +31,9 @@ export default async function OrderPage({ params }: { params: Promise<{ companyS
     ...item,
     costPrice: Number(item.costPrice),
     sellPrice: Number(item.sellPrice),
+    applicableKinds: Array.isArray(item.applicableKinds)
+      ? (item.applicableKinds as string[])
+      : null,
   }));
 
   return (
@@ -39,6 +45,7 @@ export default async function OrderPage({ params }: { params: Promise<{ companyS
       <OrderWizard
         companyId={company.id}
         currency={company.currency}
+        defaultShippingAddress={company.address ?? ''}
         glassTypes={glassTypes}
         profiles={pvcProfiles}
         hardwareItems={hardwareItems}

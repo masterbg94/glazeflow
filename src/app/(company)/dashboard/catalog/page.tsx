@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from 'react';
 
+const KINDS = [
+  { value: 'GLASS_ONLY', label: 'Samostaklo' },
+  { value: 'RAW_PROFILE', label: 'Si profil' },
+  { value: 'FINISHED_WINDOW', label: 'Gotov prozor' },
+  { value: 'FINISHED_DOOR', label: 'Gotova vrata' },
+];
+
 export default function CatalogPage() {
-  const [tab, setTab] = useState<'glass' | 'profiles' | 'hardware'>('glass');
+  const [tab, setTab] = useState<'glass' | 'profiles' | 'hardware' | 'processing'>('glass');
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -162,6 +169,89 @@ export default function CatalogPage() {
           value={form.unit || 'komad'}
           onChange={(e) => setForm({ ...form, unit: e.target.value })}
         />
+        <div className="col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Primjenjivo za vrstu proizvoda (ostavi prazno = sve)
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {KINDS.map((k) => (
+              <label key={k.value} className="flex items-center gap-1 text-xs">
+                <input
+                  type="checkbox"
+                  checked={
+                    Array.isArray(form.applicableKinds) && form.applicableKinds.includes(k.value)
+                  }
+                  onChange={(e) => {
+                    const cur = Array.isArray(form.applicableKinds) ? form.applicableKinds : [];
+                    setForm({
+                      ...form,
+                      applicableKinds: e.target.checked
+                        ? [...cur, k.value]
+                        : cur.filter((x: string) => x !== k.value),
+                    });
+                  }}
+                  className="h-3.5 w-3.5 rounded border-slate-300"
+                />
+                {k.label}
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (tab === 'processing') {
+    return (
+      <div className="grid grid-cols-2 gap-3">
+        <input
+          placeholder="Naziv"
+          className="input"
+          value={form.name || ''}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+        />
+        <input
+          placeholder="Prodajna cena"
+          type="number"
+          className="input"
+          value={form.sellPrice || ''}
+          onChange={(e) => setForm({ ...form, sellPrice: +e.target.value })}
+        />
+        <input
+          placeholder="Nabavna cena"
+          type="number"
+          className="input"
+          value={form.costPrice || ''}
+          onChange={(e) => setForm({ ...form, costPrice: +e.target.value })}
+        />
+        <div className="col-span-2">
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Primjenjivo za vrstu proizvoda (ostavi prazno = sve)
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {KINDS.map((k) => (
+              <label key={k.value} className="flex items-center gap-1 text-xs">
+                <input
+                  type="checkbox"
+                  checked={
+                    Array.isArray(form.applicableKinds) && form.applicableKinds.includes(k.value)
+                  }
+                  onChange={(e) => {
+                    const cur = Array.isArray(form.applicableKinds) ? form.applicableKinds : [];
+                    setForm({
+                      ...form,
+                      applicableKinds: e.target.checked
+                        ? [...cur, k.value]
+                        : cur.filter((x: string) => x !== k.value),
+                    });
+                  }}
+                  className="h-3.5 w-3.5 rounded border-slate-300"
+                />
+                {k.label}
+              </label>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -175,19 +265,35 @@ export default function CatalogPage() {
         </button>
       </div>
       <div className="flex gap-2 border-b border-slate-200">
-        {(['glass', 'profiles', 'hardware'] as const).map((t) => (
+        {(['glass', 'profiles', 'hardware', 'processing'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`border-b-2 px-4 py-2 text-sm font-medium ${tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`}
           >
-            {t === 'glass' ? 'Staklo' : t === 'profiles' ? 'Profili' : 'Oprema'}
+            {t === 'glass'
+              ? 'Staklo'
+              : t === 'profiles'
+                ? 'Profili'
+                : t === 'hardware'
+                  ? 'Oprema'
+                  : 'Obrada'}
           </button>
         ))}
       </div>
       {showForm && (
         <form onSubmit={createItem} className="rounded-xl border border-slate-200 bg-white p-6">
-          <h3 className="mb-4 font-semibold">Kreiraj {tab === 'glass' ? 'staklo' : tab === 'profiles' ? 'profil' : 'opremu'} stavku</h3>
+          <h3 className="mb-4 font-semibold">
+            Kreiraj{' '}
+            {tab === 'glass'
+              ? 'staklo'
+              : tab === 'profiles'
+                ? 'profil'
+                : tab === 'hardware'
+                  ? 'opremu'
+                  : 'opciju obrade'}{' '}
+            stavku
+          </h3>
           {renderForm()}
           <button className="btn mt-4 bg-blue-600 text-white">Sačuvaj</button>
         </form>

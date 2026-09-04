@@ -19,6 +19,9 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
   const [slug, setSlug] = useState('');
   const [email, setEmail] = useState('');
   const [tagline, setTagline] = useState('');
+  const [address, setAddress] = useState('');
+  const [taxRate, setTaxRate] = useState<number>(20);
+  const [markup, setMarkup] = useState<number>(25);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -32,7 +35,16 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
       const res = await fetch('/api/companies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, slug, contactEmail: email, tagline }),
+        body: JSON.stringify({
+          name,
+          slug,
+          contactEmail: email,
+          tagline,
+          address,
+          currency: 'RSD',
+          taxRatePercent: taxRate,
+          defaultMarkupPercent: markup,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -45,6 +57,9 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
       setSlug('');
       setEmail('');
       setTagline('');
+      setAddress('');
+      setTaxRate(20);
+      setMarkup(25);
       onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Nepoznata greška');
@@ -57,9 +72,7 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Naziv kompanije *
-          </label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Naziv kompanije *</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -68,9 +81,7 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Slug / poddomen *
-          </label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Slug / poddomen *</label>
           <div className="flex items-center rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-500">
             <input
               value={slug}
@@ -85,9 +96,7 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Kontakt email
-          </label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Kontakt email</label>
           <input
             type="email"
             value={email}
@@ -96,9 +105,7 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Slogan
-          </label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Slogan</label>
           <input
             value={tagline}
             onChange={(e) => setTagline(e.target.value)}
@@ -106,8 +113,53 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
           />
         </div>
       </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-slate-700">
+          Adresa kompanije (podrazumevana adresa isporuke)
+        </label>
+        <input
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="npr. Bulevar kralja Aleksandra 10, Beograd"
+          className="input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Valuta</label>
+          <input
+            value="RSD — Srpski dinar"
+            disabled
+            className="input w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Porez (%)</label>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={taxRate}
+            onChange={(e) => setTaxRate(Number(e.target.value) || 0)}
+            className="input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Markup (%)</label>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={markup}
+            onChange={(e) => setMarkup(Number(e.target.value) || 0)}
+            className="input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+      </div>
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>}
-      {success && <div className="rounded-lg bg-green-50 p-3 text-sm text-green-700">{success}</div>}
+      {success && (
+        <div className="rounded-lg bg-green-50 p-3 text-sm text-green-700">{success}</div>
+      )}
       <button
         type="submit"
         disabled={submitting}

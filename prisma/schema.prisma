@@ -99,7 +99,7 @@ model Company {
   address        String?
   footerText     String?
 
-  currency             String  @default("USD")
+  currency             String  @default("RSD")
   taxRatePercent       Decimal @default(0)
   minOrderValue        Decimal @default(0)
   defaultMarkupPercent Decimal @default(25)
@@ -236,6 +236,9 @@ model HardwareItem {
   costPrice Decimal
   sellPrice Decimal
 
+  // Product kinds this item can be used for (null/empty = all kinds)
+  applicableKinds Json?
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
@@ -272,6 +275,10 @@ model ProcessingOption {
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   name      String
+
+  // Product kinds this option applies to (null/empty = all kinds)
+  applicableKinds Json?
+
   costPrice Decimal
   sellPrice Decimal
   unit      String  @default("per_item")
