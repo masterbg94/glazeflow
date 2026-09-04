@@ -10,6 +10,34 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # GlazeFlow MVP — Agent Instructions
 
+## Instruction loading order
+
+Use instructions in this order for every task:
+
+1. Load this root `AGENTS.md` first. It contains repository-wide rules, known
+   runtime issues, commands, and environment details.
+2. Load `.agents/instructions/app-instructions.md` for every GlazeFlow task. It
+   contains the application mission, source-of-truth rules, security constraints,
+   and general verification requirements.
+3. Before editing files, load the nearest scoped `instructions.md`:
+   - `src/app/instructions.md` when touching `src/app/**`
+   - `src/lib/instructions.md` when touching `src/lib/**`
+   - `prisma/instructions.md` when touching `prisma/**`
+   - `docs/instructions.md` when touching `docs/**`
+4. For role, product, or architecture questions, also load the relevant
+   `knowledge-base/*.md` file. Start with `knowledge-base/roles-explanation.md`
+   for questions about `platformRole` and `companyRole`.
+5. If one change spans multiple scopes, load every matching scoped file before
+   editing. More specific scoped rules supplement root rules; they do not replace
+   them.
+6. Read the relevant source files and existing product docs after instructions
+   load. Code and `prisma/schema.prisma` decide implemented behavior when docs
+   disagree.
+
+Do not treat `.agents/skills/**` as GlazeFlow application instructions. Those files
+define optional agent skills, such as communication style, and are loaded only when
+the agent runtime activates the matching skill.
+
 ## Critical Issues (from terminal log)
 
 ### 1. Prisma `companyId` null errors

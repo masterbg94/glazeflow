@@ -1,5 +1,26 @@
 # GlazeFlow B2B Glass & PVC Ordering System
 
+## Instruction loading order
+
+Load repository instructions before researching or editing:
+
+1. Root `AGENTS.md` — repository rules, known issues, commands, and environment.
+2. `.agents/instructions/app-instructions.md` — GlazeFlow-wide mission and safety
+   rules.
+3. Nearest scoped `instructions.md` for each area involved:
+   - `src/app/instructions.md` for `src/app/**`
+   - `src/lib/instructions.md` for `src/lib/**`
+   - `prisma/instructions.md` for `prisma/**`
+   - `docs/instructions.md` for `docs/**`
+4. For cross-cutting work, load every matching scoped file. Scoped instructions
+   supplement, never replace, root instructions.
+5. Then read implementation and product docs. Code and `prisma/schema.prisma`
+   determine implemented behavior; docs describe intent and known gaps.
+
+For question-only work, use same loading order for relevant areas, but remain
+read-only. `.agents/skills/**` is excluded; those files are optional agent skills,
+loaded only when runtime activates matching skill.
+
 ## Project Overview
 Full-stack Next.js 14 app router application for B2B glass/PVC ordering. Multi-tenant SaaS with platform-level admin and company-level tenants.
 
