@@ -22,9 +22,11 @@ read-only. `.agents/skills/**` is excluded; those files are optional agent skill
 loaded only when runtime activates matching skill.
 
 ## Project Overview
+
 Full-stack Next.js 14 app router application for B2B glass/PVC ordering. Multi-tenant SaaS with platform-level admin and company-level tenants.
 
 ## Directory Structure
+
 - `src/app/` — Next.js app router pages and routes
   - `(auth)/` — Public auth routes (login, register)
   - `(storefront)/` — Customer-facing catalog and ordering
@@ -46,6 +48,7 @@ Full-stack Next.js 14 app router application for B2B glass/PVC ordering. Multi-t
 ## Key Conventions
 
 ### Authentication (next-auth)
+
 - Strategy: `jwt` stored in cookies
 - Callbacks: `jwt` populates `platformRole`, `companyId`, `companySlug`, `customerOrgId`, `uid`
 - `session` callback mirrors token claims to `session.user`
@@ -53,11 +56,13 @@ Full-stack Next.js 14 app router application for B2B glass/PVC ordering. Multi-t
 - Token claims available: `token.platformRole`, `token.companyId`, `token.companySlug`, `token.customerOrgId`, `token.uid`
 
 ### Authorization (rbac.ts)
+
 - `requireRole(allowed: Role[])` — Throws `UnauthorizedError` if not authenticated, `ForbiddenError` if role not in allowed list
 - `assertSameCompany(sessionCompanyId, resourceCompanyId)` — Throws `ForbiddenError` if cross-tenant access
 - Roles: `SUPER_ADMIN` (all), `COMPANY_ADMIN` (own company), `COMPANY_STAFF` (own company), `CUSTOMER` (limited)
 
 ### Pricing Engine (pricing-engine.ts)
+
 - Pure functions, no DB/network calls — usable client-side and server-side
 - Interfaces: `GlassPaneInput`, `HardwareInput`, `PricedItem`
 - Functions: `areaSqm()`, `perimeterM()`, `glassPanePrice()`, `calcItemPricing()`, `calcTotals()`
@@ -65,6 +70,7 @@ Full-stack Next.js 14 app router application for B2B glass/PVC ordering. Multi-t
 - `calcTotals()` computes subtotal, discount, tax, total
 
 ### Database (Prisma)
+
 - SQLite in development, configurable for production
 - Key models: `Company`, `User`, `GlassType`, `PvcProfile`, `HardwareItem`, `ProductTemplate`, `ProcessingOption`, `PriceList`, `Order`, `OrderItem`, `Notification`, `OrderMessage`
 - `Company` has one-to-many: `users`, `customerOrgs`, `glassTypes`, `pvcProfiles`, `hardwareItems`, `productTemplates`, `processingOptions`, `priceLists`, `orders`
@@ -72,6 +78,7 @@ Full-stack Next.js 14 app router application for B2B glass/PVC ordering. Multi-t
 - Enums: `PlatformRole`, `ProductKind`, `GlazingLayers`, `OrderStatus`, `OrderItemStatus`, `NotificationEvent`
 
 ### API Routes (src/api/)
+
 - `/api/auth/[...nextauth]` — NextAuth.js endpoint
 - `/api/catalog` — Glass/PVC product data
 - `/api/companies` — Company management
@@ -81,6 +88,7 @@ Full-stack Next.js 14 app router application for B2B glass/PVC ordering. Multi-t
 - `/api/register` — User registration
 
 ### Frontend Patterns
+
 - `app/layout.tsx` — Root layout wraps `NotificationProvider`
 - Global styles in `src/app/globals.css`
 - Tailwind CSS configured in `tailwind.config.ts`
@@ -89,6 +97,7 @@ Full-stack Next.js 14 app router application for B2B glass/PVC ordering. Multi-t
 - Cart context (from user memory): `CartProvider`/`useCart` in `app/cart/CartContext.tsx`
 
 ## Development Setup
+
 1. Install dependencies: `npm install`
 2. Environment variables: Copy `.env` and set `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `RESEND_API_KEY`, `EMAIL_FROM`
 3. Run migrations: `npx prisma migrate dev`
@@ -96,6 +105,7 @@ Full-stack Next.js 14 app router application for B2B glass/PVC ordering. Multi-t
 5. Start dev server: `npm run dev`
 
 ## Key Files to Modify
+
 - `src/middleware.ts` — Adjust auth guards and route prefixes
 - `src/lib/auth.ts` — Add/remove OAuth providers
 - `src/lib/pricing-engine.ts` — Extend pricing kinds/formulas
@@ -105,6 +115,7 @@ Full-stack Next.js 14 app router application for B2B glass/PVC ordering. Multi-t
 - `src/app/(platform)/admin/page.tsx` — Platform admin UI
 
 ## Common Tasks
+
 - **Add new glass type**: Modify `prisma/schema.prisma` → `prisma/seed.ts` → run `npx prisma migrate dev` → `npx prisma db seed`
 - **New pricing kind**: Extend `calcItemPricing()` switch statement in `pricing-engine.ts`
 - **New API endpoint**: Add route handler in `src/api/` → add TypeScript types → integrate with frontend
@@ -112,6 +123,7 @@ Full-stack Next.js 14 app router application for B2B glass/PVC ordering. Multi-t
 - **Cross-tenant protection**: Call `assertSameCompany(session.user.companyId, resource.companyId)` before CRUD operations
 
 ## Deployment Notes
+
 - Set `NODE_ENV=production` — Prisma logging reduces to `['error']`
 - Ensure `NEXTAUTH_SECRET` is a strong random string
 - Configure `NEXTAUTH_URL` to match production domain

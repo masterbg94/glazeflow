@@ -12,7 +12,11 @@ export async function middleware(req: NextRequest) {
 
   const hostOnly = hostname.split(':')[0];
   const cleanHost = hostOnly.replace(`.${ROOT_HOST}`, '').replace(ROOT_HOST, '');
-  const isRoot = hostOnly === ROOT_HOST || hostOnly === `www.${ROOT_HOST}` || hostOnly === 'localhost' || hostOnly === '127.0.0.1';
+  const isRoot =
+    hostOnly === ROOT_HOST ||
+    hostOnly === `www.${ROOT_HOST}` ||
+    hostOnly === 'localhost' ||
+    hostOnly === '127.0.0.1';
 
   // Allow auth routes without subdomain rewriting
   if (path.startsWith('/login') || path.startsWith('/register') || path.startsWith('/(auth)')) {
@@ -44,7 +48,7 @@ export async function middleware(req: NextRequest) {
     }
     if (
       path.startsWith('/dashboard') &&
-      !['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_STAFF'].includes(token.platformRole as string)
+      !['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_STAFF', 'CUSTOMER'].includes(token.platformRole as string)
     ) {
       return NextResponse.redirect(new URL('/login', req.url));
     }

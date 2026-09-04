@@ -24,6 +24,7 @@ async function main() {
       taxRatePercent: 20,
       defaultMarkupPercent: 25,
       address: 'Bulevar kralja Aleksandra 10, 11000 Beograd',
+      isProducer: true,
     },
     create: {
       name: 'Akme Staklo & PVC Sistemi',
@@ -36,22 +37,59 @@ async function main() {
       taxRatePercent: 20,
       defaultMarkupPercent: 25,
       address: 'Bulevar kralja Aleksandra 10, 11000 Beograd',
+      isProducer: true,
     },
   });
 
-  // Idempotent: if the company already has users, only update settings and exit.
-  const existingUsers = await prisma.user.count({ where: { companyId: acme.id } });
-  if (existingUsers > 0) {
-    console.log('✅ Kompanija već postoji — preskačem seed kataloga.');
-    return;
-  }
-
-  await prisma.user.create({
-    data: {
+  // Create or update main company users
+  await prisma.user.upsert({
+    where: { email: 'admin@acme.test' },
+    update: { companyRole: 'COMPANY_ADMIN' },
+    create: {
       email: 'admin@acme.test',
       name: 'Akme Admin',
       passwordHash: hash,
       platformRole: 'COMPANY_ADMIN',
+      companyRole: 'COMPANY_ADMIN',
+      companyId: acme.id,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'production@acme.test' },
+    update: { companyRole: 'PRODUCTION_WORKER' },
+    create: {
+      email: 'production@acme.test',
+      name: 'Radnik Proizvodnje',
+      passwordHash: hash,
+      platformRole: 'COMPANY_STAFF',
+      companyRole: 'PRODUCTION_WORKER',
+      companyId: acme.id,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'manager@acme.test' },
+    update: { companyRole: 'COMPANY_PRODUCTION' },
+    create: {
+      email: 'manager@acme.test',
+      name: 'Menadžer Proizvodnje',
+      passwordHash: hash,
+      platformRole: 'COMPANY_STAFF',
+      companyRole: 'COMPANY_PRODUCTION',
+      companyId: acme.id,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'sales@acme.test' },
+    update: { companyRole: 'COMPANY_SALES' },
+    create: {
+      email: 'sales@acme.test',
+      name: 'Prodavac',
+      passwordHash: hash,
+      platformRole: 'COMPANY_STAFF',
+      companyRole: 'COMPANY_SALES',
       companyId: acme.id,
     },
   });
@@ -246,12 +284,29 @@ async function main() {
     },
   });
 
-  await prisma.user.create({
-    data: {
+  await prisma.user.upsert({
+    where: { email: 'bob@customers.test' },
+    update: { companyRole: 'COMPANY_ADMIN' },
+    create: {
       email: 'bob@customers.test',
       name: 'Bob Građevinar',
       passwordHash: hash,
       platformRole: 'CUSTOMER',
+      companyRole: 'COMPANY_ADMIN',
+      companyId: acme.id,
+      customerOrgId: customerOrg.id,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'worker@customers.test' },
+    update: { companyRole: 'PRODUCTION_WORKER' },
+    create: {
+      email: 'worker@customers.test',
+      name: 'Radnik Mala Firma',
+      passwordHash: hash,
+      platformRole: 'CUSTOMER',
+      companyRole: 'PRODUCTION_WORKER',
       companyId: acme.id,
       customerOrgId: customerOrg.id,
     },

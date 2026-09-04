@@ -5,6 +5,7 @@
 `app-instructions.md` — uvek, za svaki GlazeFlow zadatak. Misija app, source-of-truth pravila, security, verifikacija.
 
 ### Scoped instrukcije — samo kad diraš taj folder:
+
 `instructions.md` — kad menjaš `src/app/**`
 `instructions.md` — kad menjaš `src/lib/**`
 `instructions.md` — kad menjaš `prisma/**`

@@ -8,17 +8,17 @@ export async function DELETE(
 ) {
   const session = await requireRole(['SUPER_ADMIN']);
   const { id, userId } = await params;
-  
+
   const user = await prisma.user.findFirst({
     where: { id: userId, companyId: id },
   });
-  
+
   if (!user) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
-  
+
   await prisma.user.delete({ where: { id: userId } });
-  
+
   return NextResponse.json({ success: true });
 }
 
@@ -29,17 +29,17 @@ export async function PATCH(
   const session = await requireRole(['SUPER_ADMIN']);
   const { id, userId } = await params;
   const body = await req.json();
-  
+
   const user = await prisma.user.findFirst({
     where: { id: userId, companyId: id },
   });
-  
+
   if (!user) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
-  
+
   const { name, phone, companyRole, isActive } = body;
-  
+
   const updated = await prisma.user.update({
     where: { id: userId },
     data: {
@@ -59,6 +59,6 @@ export async function PATCH(
       createdAt: true,
     },
   });
-  
+
   return NextResponse.json({ user: updated });
 }

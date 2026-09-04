@@ -31,7 +31,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Only customers can create orders' }, { status: 403 });
   }
   if (!user.customerOrgId) {
-    return NextResponse.json({ error: 'Session missing customerOrgId — please log out and log in again' }, { status: 401 });
+    return NextResponse.json(
+      { error: 'Session missing customerOrgId — please log out and log in again' },
+      { status: 401 }
+    );
   }
 
   const body = await req.json();
@@ -45,7 +48,10 @@ export async function POST(req: NextRequest) {
     include: { priceList: true },
   });
   if (!customerOrg) {
-    return NextResponse.json({ error: 'Customer org not found — please log out and log in again' }, { status: 401 });
+    return NextResponse.json(
+      { error: 'Customer org not found — please log out and log in again' },
+      { status: 401 }
+    );
   }
   const discountPercent = customerOrg?.priceList?.discountPercent
     ? Number(customerOrg.priceList.discountPercent)
@@ -74,7 +80,11 @@ export async function POST(req: NextRequest) {
     for (const h of item.hardware ?? []) {
       const hw = await prisma.hardwareItem.findUnique({ where: { id: h.hardwareId } });
       if (!hw) continue;
-      hardware.push({ hardwareId: h.hardwareId, sellPrice: Number(hw.sellPrice), quantity: h.quantity });
+      hardware.push({
+        hardwareId: h.hardwareId,
+        sellPrice: Number(hw.sellPrice),
+        quantity: h.quantity,
+      });
     }
     const processing = [];
     const processingItems = [];

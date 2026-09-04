@@ -1,11 +1,12 @@
-"use client";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useNotifications } from "@/components/notifications/NotificationProvider";
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNotifications } from '@/components/notifications/NotificationProvider';
 
 export function OrderMessages({ orderId }: { orderId: string }) {
   const { subscribeRealtime } = useNotifications();
   const [messages, setMessages] = useState<any[]>([]);
-  const [text, setText] = useState("");
+  const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -23,7 +24,7 @@ export function OrderMessages({ orderId }: { orderId: string }) {
   // Live updates: new messages arrive over SSE without a reload.
   useEffect(() => {
     const unsub = subscribeRealtime((e) => {
-      if (e.event !== "message:add" || e.payload.orderId !== orderId) return;
+      if (e.event !== 'message:add' || e.payload.orderId !== orderId) return;
       setMessages((prev) => {
         if (prev.some((m) => m.id === e.payload.message.id)) return prev;
         return [...prev, e.payload.message];
@@ -33,7 +34,7 @@ export function OrderMessages({ orderId }: { orderId: string }) {
   }, [orderId, subscribeRealtime]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages.length]);
 
   async function send(e: React.FormEvent) {
@@ -43,12 +44,12 @@ export function OrderMessages({ orderId }: { orderId: string }) {
     setSending(true);
     try {
       const res = await fetch(`/api/orders/${orderId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body }),
       });
       if (res.ok) {
-        setText("");
+        setText('');
         await load();
       }
     } finally {
@@ -63,14 +64,12 @@ export function OrderMessages({ orderId }: { orderId: string }) {
         {messages.map((m) => (
           <div key={m.id} className="rounded-lg bg-slate-50 p-3">
             <p className="text-xs font-medium text-slate-500">
-              {m.author?.name ?? "Nepoznato"} · {new Date(m.createdAt).toLocaleString('sr-RS')}
+              {m.author?.name ?? 'Nepoznato'} · {new Date(m.createdAt).toLocaleString('sr-RS')}
             </p>
             <p className="text-sm text-slate-800">{m.body}</p>
           </div>
         ))}
-        {messages.length === 0 && (
-          <p className="text-sm text-slate-400">Nema poruka.</p>
-        )}
+        {messages.length === 0 && <p className="text-sm text-slate-400">Nema poruka.</p>}
         <div ref={bottomRef} />
       </div>
       <form onSubmit={send} className="flex gap-2">
@@ -81,7 +80,7 @@ export function OrderMessages({ orderId }: { orderId: string }) {
           placeholder="Napišite poruku..."
         />
         <button type="submit" className="btn bg-blue-600 text-white" disabled={sending}>
-          {sending ? "Slanje..." : "Pošalji"}
+          {sending ? 'Slanje...' : 'Pošalji'}
         </button>
       </form>
     </div>
