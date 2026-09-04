@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { SignOutButton } from '@/components/auth/SignOutButton';
 import { getSession } from '@/lib/auth';
 import { getCompanyBySlug } from '@/lib/tenant';
 
@@ -61,6 +62,7 @@ export default async function StorefrontLayout({
                   <p className="text-xs text-slate-500">{(session.user as any).email}</p>
                 </div>
                 <NotificationBell orderBasePath={`/${companySlug}/my-orders`} />
+                <SignOutButton />
               </div>
             ) : (
               <Link href="/login" className="text-sm font-medium text-blue-600">
