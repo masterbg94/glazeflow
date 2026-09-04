@@ -19,6 +19,7 @@ enum CompanyRole {
   COMPANY_ADMIN
   COMPANY_SALES
   COMPANY_PRODUCTION
+  PRODUCTION_WORKER
 }
 
 enum OrderAttachmentType {
@@ -87,6 +88,7 @@ model Company {
   slug             String  @unique
   subscriptionPlan String  @default("FREE")
   isActive         Boolean @default(true)
+  isProducer       Boolean @default(false)
 
   logoUrl        String?
   primaryColor   String  @default("#1d4ed8")
@@ -108,16 +110,16 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-users              User[]
-  customerOrgs      CustomerOrg[]
-  glassTypes        GlassType[]
-  pvcProfiles       PvcProfile[]
-  hardwareItems     HardwareItem[]
-  productTemplates  ProductTemplate[]
-  processingOptions ProcessingOption[]
-  priceLists        PriceList[]
-  orders            Order[]
-  notificationRules NotificationRule[]
+  users                  User[]
+  customerOrgs           CustomerOrg[]
+  glassTypes             GlassType[]
+  pvcProfiles            PvcProfile[]
+  hardwareItems          HardwareItem[]
+  productTemplates       ProductTemplate[]
+  processingOptions      ProcessingOption[]
+  priceLists             PriceList[]
+  orders                 Order[]
+  notificationRules      NotificationRule[]
   customerPriceOverrides CustomerPriceOverride[]
 
   @@index([slug])
@@ -140,12 +142,14 @@ model User {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  ordersCreated      Order[]                 @relation("OrderCustomer")
-  ordersAssigned     Order[]                 @relation("OrderAssignee")
-  notifications      Notification[]
-  orderMessages      OrderMessage[]
+  ordersCreated          Order[]                 @relation("OrderCustomer")
+  ordersAssigned         Order[]                 @relation("OrderAssignee")
+  notifications          Notification[]
+  orderMessages          OrderMessage[]
   notificationPreference NotificationPreference?
-  uploadedAttachments OrderAttachment[]      @relation("AttachmentUploader")
+  uploadedAttachments    OrderAttachment[]       @relation("AttachmentUploader")
+  requestedTransitions   OrderStatusTransition[] @relation("TransitionRequester")
+  approvedTransitions    OrderStatusTransition[] @relation("TransitionApprover")
 
   @@index([companyId])
   @@index([customerOrgId])
@@ -163,9 +167,9 @@ model CustomerOrg {
   shippingAddress String?
   createdAt       DateTime   @default(now())
 
-  members           User[]
-  orders            Order[]
-  priceOverrides    CustomerPriceOverride[]
+  members             User[]
+  orders              Order[]
+  priceOverrides      CustomerPriceOverride[]
   savedConfigurations SavedConfiguration[]
 
   @@index([companyId])
@@ -192,8 +196,8 @@ model GlassType {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  orderItemPanes    OrderItemGlassPane[]
-  priceOverrides    CustomerPriceOverride[]
+  orderItemPanes OrderItemGlassPane[]
+  priceOverrides CustomerPriceOverride[]
 
   @@index([companyId])
 }
@@ -203,14 +207,14 @@ model PvcProfile {
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  brand               String
-  systemName          String
-  chamberCount        Int
-  installDepthMm      Int
-  wallThicknessClass  String?
-  colorOptions        Json
+  brand                String
+  systemName           String
+  chamberCount         Int
+  installDepthMm       Int
+  wallThicknessClass   String?
+  colorOptions         Json
   colorSurchargeFactor Json?
-  maxGlassThicknessMm Int     @default(40)
+  maxGlassThicknessMm  Int     @default(40)
 
   costPricePerMeter Decimal
   sellPricePerMeter Decimal
@@ -218,9 +222,9 @@ model PvcProfile {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  orderItems      OrderItem[]
-  priceOverrides  CustomerPriceOverride[]
-  savedConfigs    SavedConfiguration[]
+  orderItems     OrderItem[]
+  priceOverrides CustomerPriceOverride[]
+  savedConfigs   SavedConfiguration[]
 
   @@index([companyId])
 }
@@ -263,9 +267,9 @@ model ProductTemplate {
   maxHeightMm          Int         @default(3000)
   isActive             Boolean     @default(true)
 
-  orderItems      OrderItem[]
-  priceOverrides  CustomerPriceOverride[]
-  savedConfigs    SavedConfiguration[]
+  orderItems     OrderItem[]
+  priceOverrides CustomerPriceOverride[]
+  savedConfigs   SavedConfiguration[]
 
   @@index([companyId])
 }
@@ -299,32 +303,32 @@ model PriceList {
   isDefault       Boolean  @default(false)
   createdAt       DateTime @default(now())
 
-  customers          CustomerOrg[]
-  customerOverrides  CustomerPriceOverride[]
+  customers         CustomerOrg[]
+  customerOverrides CustomerPriceOverride[]
 
   @@index([companyId])
 }
 
 model CustomerPriceOverride {
-  id           String   @id @default(cuid())
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customerOrgId String
-  customerOrg  CustomerOrg @relation(fields: [customerOrgId], references: [id], onDelete: Cascade)
-  priceListId  String?
-  priceList    PriceList? @relation(fields: [priceListId], references: [id])
-  glassTypeId  String?
-  glassType    GlassType? @relation(fields: [glassTypeId], references: [id])
-  profileId    String?
-  profile      PvcProfile? @relation(fields: [profileId], references: [id])
-  hardwareId   String?
-  hardware     HardwareItem? @relation(fields: [hardwareId], references: [id])
-  templateId   String?
-  template     ProductTemplate? @relation(fields: [templateId], references: [id])
+  id                String           @id @default(cuid())
+  companyId         String
+  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerOrgId     String
+  customerOrg       CustomerOrg      @relation(fields: [customerOrgId], references: [id], onDelete: Cascade)
+  priceListId       String?
+  priceList         PriceList?       @relation(fields: [priceListId], references: [id])
+  glassTypeId       String?
+  glassType         GlassType?       @relation(fields: [glassTypeId], references: [id])
+  profileId         String?
+  profile           PvcProfile?      @relation(fields: [profileId], references: [id])
+  hardwareId        String?
+  hardware          HardwareItem?    @relation(fields: [hardwareId], references: [id])
+  templateId        String?
+  template          ProductTemplate? @relation(fields: [templateId], references: [id])
   overrideSellPrice Decimal?
   discountPercent   Decimal?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
 
   @@index([companyId, customerOrgId])
 }
@@ -360,11 +364,12 @@ model Order {
   confirmedAt DateTime?
   closedAt    DateTime?
 
-  items         OrderItem[]
-  messages      OrderMessage[]
-  attachments   OrderAttachment[]
-  statusHistory OrderStatusHistory[]
-  notifications Notification[]
+  items             OrderItem[]
+  messages          OrderMessage[]
+  attachments       OrderAttachment[]
+  statusHistory     OrderStatusHistory[]
+  statusTransitions OrderStatusTransition[]
+  notifications     Notification[]
 
   @@index([companyId])
   @@index([companyId, status])
@@ -372,19 +377,19 @@ model Order {
 }
 
 model OrderAttachment {
-  id        String              @id @default(cuid())
-  orderId   String
-  order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderItemId String?
-  orderItem OrderItem?          @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  id           String              @id @default(cuid())
+  orderId      String
+  order        Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItemId  String?
+  orderItem    OrderItem?          @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
   uploadedById String
-  uploadedBy User              @relation("AttachmentUploader", fields: [uploadedById], references: [id])
-  fileName  String
-  fileUrl   String
-  fileType  String
-  fileSize  Int
-  type      OrderAttachmentType @default(OTHER)
-  createdAt DateTime            @default(now())
+  uploadedBy   User                @relation("AttachmentUploader", fields: [uploadedById], references: [id])
+  fileName     String
+  fileUrl      String
+  fileType     String
+  fileSize     Int
+  type         OrderAttachmentType @default(OTHER)
+  createdAt    DateTime            @default(now())
 
   @@index([orderId])
   @@index([orderItemId])
@@ -417,22 +422,22 @@ model OrderItem {
   status    OrderItemStatus @default(PENDING)
   note      String?
 
-  glassPanes OrderItemGlassPane[]
-  hardware   OrderItemHardware[]
-  processing OrderItemProcessing[]
+  glassPanes  OrderItemGlassPane[]
+  hardware    OrderItemHardware[]
+  processing  OrderItemProcessing[]
   attachments OrderAttachment[]
 
   @@index([orderId])
 }
 
 model OrderItemProcessing {
-  id          String            @id @default(cuid())
-  orderItemId String
-  orderItem   OrderItem         @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  id                 String           @id @default(cuid())
+  orderItemId        String
+  orderItem          OrderItem        @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
   processingOptionId String
   processingOption   ProcessingOption @relation(fields: [processingOptionId], references: [id])
-  price       Decimal
-  quantity    Int     @default(1)
+  price              Decimal
+  quantity           Int              @default(1)
 
   @@index([orderItemId])
 }
@@ -476,6 +481,33 @@ model OrderStatusHistory {
   @@index([orderId])
 }
 
+model OrderStatusTransition {
+  id          String           @id @default(cuid())
+  orderId     String
+  order       Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  requestedBy String
+  requester   User             @relation("TransitionRequester", fields: [requestedBy], references: [id])
+  fromStatus  OrderStatus
+  toStatus    OrderStatus
+  reason      String?
+  status      TransitionStatus @default(PENDING)
+  approvedBy  String?
+  approver    User?            @relation("TransitionApprover", fields: [approvedBy], references: [id])
+  approvedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+}
+
+enum TransitionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 model OrderMessage {
   id        String   @id @default(cuid())
   orderId   String
@@ -504,56 +536,56 @@ model Notification {
 }
 
 model SavedConfiguration {
-  id              String   @id @default(cuid())
-  customerOrgId   String
-  customerOrg     CustomerOrg @relation(fields: [customerOrgId], references: [id], onDelete: Cascade)
-  name            String
-  description     String?
-  kind            ProductKind
-  templateId      String?
-  template        ProductTemplate? @relation(fields: [templateId], references: [id])
-  widthMm         Int?
-  heightMm        Int?
-  lengthM         Decimal?
-  quantity        Int      @default(1)
-  profileId       String?
-  profile         PvcProfile? @relation(fields: [profileId], references: [id])
-  profileColor    String?
-  glazingLayers   GlazingLayers @default(DOUBLE)
-  airGapMm        Int?     @default(16)
-  gasFill         String?  @default("air")
-  glassPanes      Json
-  hardware        Json
-  processing      Json
-  isPublic        Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            String           @id @default(cuid())
+  customerOrgId String
+  customerOrg   CustomerOrg      @relation(fields: [customerOrgId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  kind          ProductKind
+  templateId    String?
+  template      ProductTemplate? @relation(fields: [templateId], references: [id])
+  widthMm       Int?
+  heightMm      Int?
+  lengthM       Decimal?
+  quantity      Int              @default(1)
+  profileId     String?
+  profile       PvcProfile?      @relation(fields: [profileId], references: [id])
+  profileColor  String?
+  glazingLayers GlazingLayers    @default(DOUBLE)
+  airGapMm      Int?             @default(16)
+  gasFill       String?          @default("air")
+  glassPanes    Json
+  hardware      Json
+  processing    Json
+  isPublic      Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   @@index([customerOrgId])
 }
 
 model NotificationPreference {
-  id              String               @id @default(cuid())
-  userId          String               @unique
-  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  emailEnabled    Boolean              @default(true)
-  inAppEnabled    Boolean              @default(true)
-  frequency       NotificationFrequency @default(IMMEDIATE)
-  events          Json                 @default("[]")
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  id           String                @id @default(cuid())
+  userId       String                @unique
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailEnabled Boolean               @default(true)
+  inAppEnabled Boolean               @default(true)
+  frequency    NotificationFrequency @default(IMMEDIATE)
+  events       Json                  @default("[]")
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
 }
 
 model NotificationRule {
-  id              String            @id @default(cuid())
-  companyId       String
-  company         Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  event           NotificationEvent
-  targetRole      CompanyRole
-  channel         NotificationChannel @default(BOTH)
-  isActive        Boolean           @default(true)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id         String              @id @default(cuid())
+  companyId  String
+  company    Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  event      NotificationEvent
+  targetRole CompanyRole
+  channel    NotificationChannel @default(BOTH)
+  isActive   Boolean             @default(true)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
 
   @@index([companyId])
 }

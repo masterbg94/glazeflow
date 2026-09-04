@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { SignOutButton } from '@/components/auth/SignOutButton';
+import { useEffect, useState } from 'react';
 import { CreateCompanyForm } from '@/components/admin/CreateCompanyForm';
+import { SignOutButton } from '@/components/auth/SignOutButton';
 
 interface Company {
   id: string;

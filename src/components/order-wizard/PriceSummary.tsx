@@ -1,5 +1,6 @@
-"use client";
-import { formatCurrency } from "@/lib/utils";
+'use client';
+
+import { formatCurrency } from '@/lib/utils';
 
 interface Props {
   unitPrice: number;
@@ -43,7 +44,7 @@ export function PriceSummary(p: Props) {
 
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
-    <div className={`flex justify-between ${bold ? "font-semibold text-slate-900" : ""}`}>
+    <div className={`flex justify-between ${bold ? 'font-semibold text-slate-900' : ''}`}>
       <span>{label}</span>
       <span>{value}</span>
     </div>

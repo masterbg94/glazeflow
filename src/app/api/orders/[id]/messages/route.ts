@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { notify } from '@/lib/notifications';
-import { publishToUsers } from '@/lib/realtime';
 import { prisma } from '@/lib/prisma';
+import { publishToUsers } from '@/lib/realtime';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,7 +12,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const order = await prisma.order.findUnique({ where: { id } });
   if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!canAccessOrder(user, order)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!canAccessOrder(user, order))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const messages = await prisma.orderMessage.findMany({
     where: { orderId: id },
@@ -31,7 +32,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const order = await prisma.order.findUnique({ where: { id } });
   if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!canAccessOrder(user, order)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!canAccessOrder(user, order))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const message = await prisma.orderMessage.create({
     data: { orderId: id, authorId: user.id, body },
@@ -65,7 +67,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json({ message });
 }
 
-function canAccessOrder(user: any, order: { companyId: string; customerOrgId: string; createdById: string }) {
+function canAccessOrder(
+  user: any,
+  order: { companyId: string; customerOrgId: string; createdById: string }
+) {
   if (user.platformRole === 'SUPER_ADMIN') return true;
   if (['COMPANY_ADMIN', 'COMPANY_STAFF'].includes(user.platformRole)) {
     return order.companyId === user.companyId;

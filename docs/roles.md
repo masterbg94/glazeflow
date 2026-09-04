@@ -7,6 +7,7 @@ Evo kompletnog pregleda rola, od najjače ka najslabijoj:
 Vlasnik platforme. Nema `companyId` — nije vezan ni za jednu kompaniju.
 
 **Može:**
+
 - Kreirati/brisati kompanije (`/admin` panel, API `requireRole(['SUPER_ADMIN'])`)
 - Dodavati/brisati/uređivati korisnike u bilo kojoj kompaniji
 - Videti SVE narudžbine svih kompanija
@@ -14,6 +15,7 @@ Vlasnik platforme. Nema `companyId` — nije vezan ni za jednu kompaniju.
 - Čitati/komunicirati na bilo kojoj narudžbini
 
 **Ne može:**
+
 - Kreirati narudžbine (samo CUSTOMER može)
 - Pristupiti dashboardu svoje kompanije nema `companyId`, redirect na `/admin`
 - Videti katalog bilo koje kompanije (API vraća 403 za `SUPER_ADMIN` na `/api/catalog`)
@@ -27,6 +29,7 @@ Vlasnik platforme. Nema `companyId` — nije vezan ni za jednu kompaniju.
 Admin unutar svoje kompanije. Ima `companyId`.
 
 **Može:**
+
 - Čitati katalog svoje kompanije
 - Kreirati nove stvari u katalogu (`POST /api/catalog` — samo `COMPANY_ADMIN`)
 - Menjati status narudžbina (`PATCH /api/orders/[id]/status`)
@@ -35,6 +38,7 @@ Admin unutar svoje kompanije. Ima `companyId`.
 - Pristupiti `/dashboard/*` ruta
 
 **Ne može:**
+
 - Kreirati narudžbine (samo CUSTOMER)
 - Upravljati drugim kompanijama
 - Pristupiti `/admin` panelu
@@ -47,6 +51,7 @@ Admin unutar svoje kompanije. Ima `companyId`.
 Zaposleni u kompaniji. Ima `companyId`.
 
 **Može:**
+
 - Čitati katalog svoje kompanije
 - Menjati status narudžbina (isti kao `COMPANY_ADMIN`)
 - Videti narudžbine svoje kompanije
@@ -54,6 +59,7 @@ Zaposleni u kompaniji. Ima `companyId`.
 - Pristupiti `/dashboard/*`
 
 **Ne može:**
+
 - Kreirati stvari u katalogu (API gleda samo `COMPANY_ADMIN`)
 - Kreirati narudžbine (samo CUSTOMER)
 - Upravljati kompanijama/korisnicima
@@ -68,6 +74,7 @@ Zaposleni u kompaniji. Ima `companyId`.
 Kupac. Može imati `companyId` + `customerOrgId`.
 
 **Može:**
+
 - Kreirati narudžbine (`POST /api/orders` — jedini koji može)
 - Videti SVOJE narudžbine na storefrontu (`/storefront/[slug]/my-orders`)
 - Komunicirati na svojim narudžbinama
@@ -75,6 +82,7 @@ Kupac. Može imati `companyId` + `customerOrgId`.
 - Registrovati se javno (`/register`)
 
 **Ne može:**
+
 - Videti katalog (API vraća 403)
 - Menjati status narudžbina
 - Pristupiti `/dashboard/*` ili `/admin`

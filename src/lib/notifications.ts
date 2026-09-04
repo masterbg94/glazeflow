@@ -1,8 +1,8 @@
 import { NotificationEvent } from '@prisma/client';
 import { sendEmail } from './email';
+import type { NotificationPayload } from './events';
 import { prisma } from './prisma';
 import { publishToUsers } from './realtime';
-import type { NotificationPayload } from './events';
 
 export async function notify(input: {
   userId: string;
