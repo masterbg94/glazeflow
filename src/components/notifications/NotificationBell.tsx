@@ -33,15 +33,15 @@ export function NotificationBell({ orderBasePath }: { orderBasePath?: string }) 
       {open && (
         <div className="absolute right-0 z-50 mt-2 max-h-96 w-80 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
           <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
-            <span className="text-xs font-medium text-slate-500">Notifications</span>
+            <span className="text-xs font-medium text-slate-500">Obaveštenja</span>
             {unread > 0 && (
               <button onClick={clearAll} className="text-xs text-blue-600 hover:underline">
-                Mark all read
+                Označi sve pročitano
               </button>
             )}
           </div>
           {notifications.length === 0 && (
-            <p className="p-4 text-sm text-slate-400">No notifications yet.</p>
+            <p className="p-4 text-sm text-slate-400">Nema obaveštenja.</p>
           )}
           {notifications.map((n) => (
             <button

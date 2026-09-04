@@ -7,27 +7,27 @@ export default function Home() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <span className="text-xl font-bold text-blue-600">GlazeFlow</span>
           <Link href="/login" className="text-sm font-medium text-slate-700 hover:text-blue-600">
-            Sign in
+            Prijava
           </Link>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-6 py-24 text-center">
-        <h1 className="text-5xl font-bold text-slate-900">Order Glass & PVC with Live Pricing</h1>
+        <h1 className="text-5xl font-bold text-slate-900">Naručujte Staklo i PVC sa Cenama u Realnom Vremenu</h1>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-500">
-          The B2B ordering bridge between glass/PVC manufacturers and fabricators/installers.
+          B2B platforma za narudžbine koja povezuje proizvođače stakla/PVC-a sa montažama i instalaterima.
         </p>
         <div className="mt-8 flex justify-center gap-4">
           <Link
             href="/register"
             className="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white"
           >
-            Get Started
+            Počnite
           </Link>
           <Link
             href="/login"
             className="rounded-lg border border-slate-300 px-6 py-3 font-medium text-slate-700"
           >
-            Sign in
+            Prijava
           </Link>
         </div>
       </main>

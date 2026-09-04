@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 export default async function MyOrders({ params }: { params: Promise<{ companySlug: string }> }) {
   const { companySlug } = await params;
   const session = await getSession();
-  if (!session?.user) return <p>Please login to view orders.</p>;
+  if (!session?.user) return <p>Molimo prijavite se da biste videli narudžbine.</p>;
 
   const userId = (session.user as any).id;
   const orders = await prisma.order.findMany({
@@ -16,8 +16,8 @@ export default async function MyOrders({ params }: { params: Promise<{ companySl
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold">My Orders</h1>
-      {orders.length === 0 && <p className="text-slate-500">No orders yet.</p>}
+      <h1 className="mb-6 text-2xl font-bold">Moje narudžbine</h1>
+      {orders.length === 0 && <p className="text-slate-500">Još nemate narudžbina.</p>}
       <div className="space-y-4">
         {orders.map((o) => (
           <Link
@@ -29,7 +29,7 @@ export default async function MyOrders({ params }: { params: Promise<{ companySl
               <div>
                 <p className="font-semibold text-slate-900">{o.orderNumber}</p>
                 <p className="text-xs text-slate-500">
-                  {new Date(o.createdAt).toLocaleDateString()}
+                  {new Date(o.createdAt).toLocaleDateString('sr-RS')}
                 </p>
               </div>
               <div className="text-right">

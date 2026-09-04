@@ -19,6 +19,9 @@ export default async function OrderPage({ params }: { params: Promise<{ companyS
     ...item,
     costPrice: Number(item.costPrice),
     sellPrice: Number(item.sellPrice),
+    applicableKinds: Array.isArray(item.applicableKinds)
+      ? (item.applicableKinds as string[])
+      : null,
   }));
   const productTemplates = company.productTemplates.map((item) => ({
     ...item,
@@ -28,17 +31,21 @@ export default async function OrderPage({ params }: { params: Promise<{ companyS
     ...item,
     costPrice: Number(item.costPrice),
     sellPrice: Number(item.sellPrice),
+    applicableKinds: Array.isArray(item.applicableKinds)
+      ? (item.applicableKinds as string[])
+      : null,
   }));
 
   return (
     <div>
-      <h1 className="mb-2 text-2xl font-bold">Place an Order</h1>
+      <h1 className="mb-2 text-2xl font-bold">Poručite stavku</h1>
       <p className="mb-8 text-sm text-slate-500">
-        Configure your items — prices update live as you enter dimensions.
+        Konfigurisite stavke — cene se ažuriraju naživo prilikom unosa dimenzija.
       </p>
       <OrderWizard
         companyId={company.id}
         currency={company.currency}
+        defaultShippingAddress={company.address ?? ''}
         glassTypes={glassTypes}
         profiles={pvcProfiles}
         hardwareItems={hardwareItems}

@@ -11,7 +11,7 @@ export default async function OrderDetail({
 }) {
   const { id } = await params;
   const session = await getSession();
-  if (!session?.user) return <p>Please login.</p>;
+  if (!session?.user) return <p>Molimo prijavite se.</p>;
 
   const order = await prisma.order.findUnique({
     where: { id },
@@ -36,7 +36,7 @@ export default async function OrderDetail({
         <div>
           <h1 className="text-2xl font-bold">{order.orderNumber}</h1>
           <p className="text-sm text-slate-500">
-            Ordered {new Date(order.createdAt).toLocaleDateString()}
+            Naručeno {new Date(order.createdAt).toLocaleDateString('sr-RS')}
           </p>
         </div>
         <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
@@ -48,11 +48,11 @@ export default async function OrderDetail({
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-left">
             <tr>
-              <th className="p-4">Item</th>
-              <th className="p-4">Dimensions</th>
-              <th className="p-4">Qty</th>
-              <th className="p-4 text-right">Unit</th>
-              <th className="p-4 text-right">Total</th>
+              <th className="p-4">Stavka</th>
+              <th className="p-4">Dimenzije</th>
+              <th className="p-4">Količina</th>
+              <th className="p-4 text-right">Jedinična cena</th>
+              <th className="p-4 text-right">Ukupno</th>
             </tr>
           </thead>
           <tbody>
@@ -83,7 +83,7 @@ export default async function OrderDetail({
           <tfoot>
             <tr className="border-t-2 border-slate-200">
               <td colSpan={4} className="p-4 text-right font-medium">
-                Total
+                Ukupno
               </td>
               <td className="p-4 text-right font-bold">
                 {order.total.toString()} {order.currency}
@@ -94,14 +94,14 @@ export default async function OrderDetail({
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="mb-4 font-semibold">Status Timeline</h2>
+        <h2 className="mb-4 font-semibold">Vremenska linija statusa</h2>
         <div className="space-y-3">
           {order.statusHistory.map((h) => (
             <div key={h.id} className="flex gap-3 text-sm">
               <span className="mt-1 h-2 w-2 rounded-full bg-blue-500" />
               <div>
                 <p className="font-medium">{h.toStatus}</p>
-                <p className="text-xs text-slate-400">{new Date(h.createdAt).toLocaleString()}</p>
+                <p className="text-xs text-slate-400">{new Date(h.createdAt).toLocaleString('sr-RS')}</p>
               </div>
             </div>
           ))}

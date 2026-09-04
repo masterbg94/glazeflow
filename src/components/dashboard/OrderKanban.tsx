@@ -18,6 +18,17 @@ interface Order {
 
 const COLUMNS = ["NEW", "QUOTE_AMENDMENT", "CONFIRMED", "IN_PRODUCTION", "READY", "DELIVERED", "CLOSED", "CANCELLED"];
 
+const COLUMN_LABELS: Record<string, string> = {
+  NEW: "Nova",
+  QUOTE_AMENDMENT: "Izmena ponude",
+  CONFIRMED: "Potvrđena",
+  IN_PRODUCTION: "U proizvodnji",
+  READY: "Spremna",
+  DELIVERED: "Isporučena",
+  CLOSED: "Zatvorena",
+  CANCELLED: "Otkazana",
+};
+
 export function OrderKanban({ orders }: { orders: Order[] }) {
   const { subscribeRealtime } = useNotifications();
   const [board, setBoard] = useState<Order[]>(orders);
@@ -75,7 +86,7 @@ export function OrderKanban({ orders }: { orders: Order[] }) {
           return (
             <div key={col} className="flex w-72 flex-col rounded-xl bg-slate-100 p-3">
               <h3 className="mb-3 shrink-0 px-1 text-sm font-semibold text-slate-700">
-                {col.replace(/_/g, " ")} ({filtered.length})
+                {COLUMN_LABELS[col] || col.replace(/_/g, " ")} ({filtered.length})
               </h3>
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
                 {filtered.map((o) => (
@@ -91,11 +102,11 @@ export function OrderKanban({ orders }: { orders: Order[] }) {
                       </p>
                     )}
                     {o.shippingAddress && (
-                      <p className="mt-1 text-xs text-slate-500">Ship: {o.shippingAddress}</p>
+                      <p className="mt-1 text-xs text-slate-500">Isporuči: {o.shippingAddress}</p>
                     )}
                     {o.requestedDate && (
                       <p className="mt-1 text-xs text-slate-500">
-                        Requested: {new Date(o.requestedDate).toLocaleDateString('en-US')}
+                        Traženo: {new Date(o.requestedDate).toLocaleDateString('sr-RS')}
                       </p>
                     )}
                     <select
@@ -105,14 +116,14 @@ export function OrderKanban({ orders }: { orders: Order[] }) {
                       disabled={updating === o.id}
                     >
                       {COLUMNS.map((c) => (
-                        <option key={c} value={c}>{c.replace(/_/g, " ")}</option>
+                        <option key={c} value={c}>{COLUMN_LABELS[c] || c.replace(/_/g, " ")}</option>
                       ))}
                     </select>
                   </div>
                 ))}
                 {filtered.length === 0 && (
                   <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-400">
-                    Empty
+                    Prazno
                   </p>
                 )}
               </div>

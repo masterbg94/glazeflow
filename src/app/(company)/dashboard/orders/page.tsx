@@ -30,7 +30,7 @@ export default async function OrdersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Orders</h1>
+      <h1 className="text-2xl font-bold">Narudžbine</h1>
       <OrderKanban orders={serializedOrders as any} />
     </div>
   );

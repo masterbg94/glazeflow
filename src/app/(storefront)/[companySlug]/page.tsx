@@ -18,15 +18,15 @@ export default async function StorefrontHome({
           background: 'linear-gradient(to right, var(--brand-primary), var(--brand-secondary))',
         }}
       >
-        <h1 className="text-3xl font-bold">{company.tagline || `Welcome to ${company.name}`}</h1>
+        <h1 className="text-3xl font-bold">{company.tagline || `Dobrodošli u ${company.name}`}</h1>
         <p className="mt-3 max-w-xl text-white/80">
-          Order glass, PVC profiles, and finished windows/doors with live dimension-based pricing.
+          Poručite staklo, PVC profile i gotove prozore/vrata uz live cenovinu na osnovu dimenzija.
         </p>
         <Link
           href={`/${companySlug}/order`}
           className="mt-6 inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 font-medium text-blue-600 hover:bg-slate-100"
         >
-          Start an Order <ArrowRight size={16} />
+          Počnite narudžbinu <ArrowRight size={16} />
         </Link>
       </section>
       <section className="mt-12 grid gap-4 sm:grid-cols-3">

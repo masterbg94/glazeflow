@@ -58,18 +58,18 @@ export function OrderMessages({ orderId }: { orderId: string }) {
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6">
-      <h2 className="mb-4 font-semibold">Messages</h2>
+      <h2 className="mb-4 font-semibold">Poruke</h2>
       <div className="mb-4 max-h-64 space-y-3 overflow-y-auto">
         {messages.map((m) => (
           <div key={m.id} className="rounded-lg bg-slate-50 p-3">
             <p className="text-xs font-medium text-slate-500">
-              {m.author?.name ?? "Unknown"} · {new Date(m.createdAt).toLocaleString()}
+              {m.author?.name ?? "Nepoznato"} · {new Date(m.createdAt).toLocaleString('sr-RS')}
             </p>
             <p className="text-sm text-slate-800">{m.body}</p>
           </div>
         ))}
         {messages.length === 0 && (
-          <p className="text-sm text-slate-400">No messages yet.</p>
+          <p className="text-sm text-slate-400">Nema poruka.</p>
         )}
         <div ref={bottomRef} />
       </div>
@@ -78,10 +78,10 @@ export function OrderMessages({ orderId }: { orderId: string }) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           className="input"
-          placeholder="Write a message..."
+          placeholder="Napišite poruku..."
         />
         <button type="submit" className="btn bg-blue-600 text-white" disabled={sending}>
-          {sending ? "Sending..." : "Send"}
+          {sending ? "Slanje..." : "Pošalji"}
         </button>
       </form>
     </div>

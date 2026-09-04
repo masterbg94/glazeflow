@@ -16,7 +16,7 @@ export function SignOutButton() {
       onClick={() => signOut({ callbackUrl: '/login' })}
       className="text-sm font-medium text-red-600 hover:underline"
     >
-      Sign out
+      Odjava
     </button>
   );
 }

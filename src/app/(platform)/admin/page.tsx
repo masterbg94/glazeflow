@@ -37,28 +37,28 @@ export default function AdminPage() {
   return (
     <div className="p-8">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Platform Admin</h1>
+        <h1 className="text-2xl font-bold">Platform administrator</h1>
         <SignOutButton />
       </div>
 
       <div className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold">Create new tenant</h2>
+        <h2 className="mb-4 text-lg font-semibold">Kreiraj novi tenantski nalog</h2>
         <CreateCompanyForm onSuccess={onCompanyCreated} />
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white">
         {loading ? (
-          <div className="p-8 text-center text-slate-500">Loading…</div>
+          <div className="p-8 text-center text-slate-500">Učitavanje…</div>
         ) : (
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left">
               <tr>
-                <th className="p-4">Company</th>
+                <th className="p-4">Kompanija</th>
                 <th className="p-4">Slug</th>
-                <th className="p-4">Users</th>
-                <th className="p-4">Orders</th>
+                <th className="p-4">Korisnici</th>
+                <th className="p-4">Narudžbine</th>
                 <th className="p-4">Status</th>
-                <th className="p-4">Actions</th>
+                <th className="p-4">Akcije</th>
               </tr>
             </thead>
             <tbody>
@@ -68,13 +68,13 @@ export default function AdminPage() {
                   <td className="p-4">{c.slug}</td>
                   <td className="p-4">{c._count.users}</td>
                   <td className="p-4">{c._count.orders}</td>
-                  <td className="p-4">{c.isActive ? 'Active' : 'Inactive'}</td>
+                  <td className="p-4">{c.isActive ? 'Aktivan' : 'Neaktivan'}</td>
                   <td className="p-4">
                     <Link
                       href={`/admin/companies/${c.id}`}
                       className="text-blue-600 hover:underline text-sm font-medium"
                     >
-                      Manage users
+                      Upravljaj korisnicima
                     </Link>
                   </td>
                 </tr>
@@ -82,7 +82,7 @@ export default function AdminPage() {
               {companies.length === 0 && (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-slate-500">
-                    No companies yet. Create one above.
+                    Još nema kompanija. Kreirajte jednu iznad.
                   </td>
                 </tr>
               )}

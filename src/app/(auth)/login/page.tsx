@@ -34,7 +34,7 @@ function LoginForm() {
     setError('');
     const res = await signIn('credentials', { email, password, redirect: false });
     setLoading(false);
-    if (res?.error) setError('Invalid email or password');
+    if (res?.error) setError('Neispravan email ili lozinka');
     else {
       // Honour an explicit callbackUrl only when it is a subdomain-scoped path;
       // otherwise fall back to the customer redirect computed from the host.
@@ -55,7 +55,7 @@ function LoginForm() {
             G
           </div>
           <h1 className="mt-4 text-2xl font-bold">GlazeFlow</h1>
-          <p className="mt-1 text-sm text-slate-500">Sign in to your account</p>
+          <p className="mt-1 text-sm text-slate-500">Prijavite se na svoj nalog</p>
         </div>
         {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>}
         <LoginFormFields
@@ -68,9 +68,9 @@ function LoginForm() {
           handleSubmit={handleSubmit}
         />
         <p className="mt-6 text-center text-sm text-slate-500">
-          No account?{' '}
+          Nemate nalog?{' '}
           <a href="/register" className="text-blue-600 hover:underline">
-            Register
+            Registrujte se
           </a>
         </p>
       </div>
@@ -108,7 +108,7 @@ function LoginFormFields({
         />
       </div>
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
+        <label className="mb-1 block text-sm font-medium text-slate-700">Lozinka</label>
         <input
           type="password"
           value={password}
@@ -122,7 +122,7 @@ function LoginFormFields({
         disabled={loading}
         className="btn w-full bg-blue-600 text-white hover:bg-blue-700"
       >
-        {loading ? 'Signing in...' : 'Sign in'}
+        {loading ? 'Prijavljivanje...' : 'Prijava'}
       </button>
     </form>
   );
