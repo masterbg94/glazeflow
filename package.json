@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "rm -rf .next && next dev",
+    "dev": "next dev --webpack",
+    "clean-dev":"rm -rf .next && npm run dev",
     "build": "prisma generate && next build",
     "start": "next start",
     "postinstall": "prisma generate || true",

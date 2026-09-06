@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { HorizontalBarChart, RoleDistribution, StatCard } from '@/components/admin';
 import { SignOutButton } from '@/components/auth/SignOutButton';
 import { useNotifications } from '@/components/notifications/NotificationProvider';
 
@@ -13,7 +14,20 @@ interface Company {
   isActive: boolean;
   contactEmail?: string;
   tagline?: string;
-  _count: { users: number; orders: number };
+  currency: string;
+  counts: {
+    users: number;
+    orders: number;
+    customerOrgs: number;
+    catalog: {
+      glassTypes: number;
+      pvcProfiles: number;
+      hardwareItems: number;
+      productTemplates: number;
+      processingOptions: number;
+      priceLists: number;
+    };
+  };
 }
 
 interface User {
@@ -27,13 +41,59 @@ interface User {
   createdAt: string;
 }
 
+interface CompanyStats {
+  company: Company;
+  ordersByStatus: Array<{ status: string; count: number }>;
+  totalRevenue: string;
+  revenueTrend: Array<{ month: string; revenue: number }>;
+  topCustomers: Array<{ id: string; name: string; orderCount: number }>;
+  catalogCompleteness: {
+    hasGlass: boolean;
+    hasProfiles: boolean;
+    hasHardware: boolean;
+    hasTemplates: boolean;
+    hasProcessing: boolean;
+    hasPriceLists: boolean;
+  };
+}
+
+const statusLabels: Record<string, string> = {
+  NEW: 'Nova',
+  QUOTE_AMENDMENT: 'Korekcija ponude',
+  CONFIRMED: 'Potvrđena',
+  IN_PRODUCTION: 'U proizvodnji',
+  READY: 'Spremna',
+  DELIVERED: 'Isporučena',
+  CLOSED: 'Zatvorena',
+  CANCELLED: 'Otkazana',
+};
+const statusColors: Record<string, string> = {
+  NEW: '#3b82f6',
+  QUOTE_AMENDMENT: '#f59e0b',
+  CONFIRMED: '#0891b2',
+  IN_PRODUCTION: '#8b5cf6',
+  READY: '#10b981',
+  DELIVERED: '#059669',
+  CLOSED: '#64748b',
+  CANCELLED: '#ef4444',
+};
+
+const catalogChecks = [
+  { key: 'hasGlass', label: 'Tipovi stakla', icon: '🔍' },
+  { key: 'hasProfiles', label: 'PVC profili', icon: '📐' },
+  { key: 'hasHardware', label: 'Oprema', icon: '🔧' },
+  { key: 'hasTemplates', label: 'Šabloni proizvoda', icon: '📋' },
+  { key: 'hasProcessing', label: 'Opcije obrade', icon: '⚙️' },
+  { key: 'hasPriceLists', label: 'Cenovnici', icon: '💰' },
+];
+
 export default function CompanyDetailPage() {
   const params = useParams();
   const router = useRouter();
   const companyId = params.id as string;
   const { toast } = useNotifications();
 
-  const [company, setCompany] = useState<Company | null>(null);
+  const [stats, setStats] = useState<CompanyStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -48,28 +108,34 @@ export default function CompanyDetailPage() {
     companyRole: 'COMPANY_ADMIN',
   });
 
-  async function fetchCompany() {
-    const res = await fetch(`/api/companies/${companyId}`);
-    if (res.ok) {
-      const data = await res.json();
-      setCompany(data.company);
-    } else {
-      router.push('/admin');
-    }
-  }
+  async function fetchData() {
+    try {
+      const [statsRes, usersRes] = await Promise.all([
+        fetch(`/api/admin/companies/${companyId}/stats`, { credentials: 'include' }),
+        fetch(`/api/companies/${companyId}/users`, { credentials: 'include' }),
+      ]);
 
-  async function fetchUsers() {
-    const res = await fetch(`/api/companies/${companyId}/users`);
-    if (res.ok) {
-      const data = await res.json();
-      setUsers(data.users || []);
+      if (statsRes.ok) {
+        const data = await statsRes.json();
+        setStats(data);
+      } else {
+        router.push('/admin');
+        return;
+      }
+
+      if (usersRes.ok) {
+        const data = await usersRes.json();
+        setUsers(data.users || []);
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Nepoznata greška', 'error');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   useEffect(() => {
-    fetchCompany();
-    fetchUsers();
+    fetchData();
   }, [companyId]);
 
   async function handleAddUser(e: React.FormEvent) {
@@ -95,7 +161,7 @@ export default function CompanyDetailPage() {
       setSuccess(`Korisnik ${data.user.name} dodat uspešno`);
       setFormData({ email: '', name: '', password: '', companyRole: 'COMPANY_ADMIN' });
       setShowAddUser(false);
-      fetchUsers();
+      fetchData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Nepoznata greška');
     } finally {
@@ -118,7 +184,7 @@ export default function CompanyDetailPage() {
       }
 
       toast('Korisnik obrisan', 'success');
-      fetchUsers();
+      fetchData();
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Nepoznata greška', 'error');
     }
@@ -139,19 +205,66 @@ export default function CompanyDetailPage() {
       }
 
       toast(user.isActive ? 'Korisnik deaktiviran' : 'Korisnik aktiviran', 'success');
-      fetchUsers();
+      fetchData();
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Nepoznata greška', 'error');
     }
   }
 
   if (loading) {
-    return <div className="p-8 text-center">Učitavanje…</div>;
+    return (
+      <div className="p-8">
+        <div className="mb-6 flex items-center justify-between">
+          <div className="animate-pulse">
+            <div className="h-6 bg-slate-200 rounded w-48 mb-2" />
+            <div className="h-4 bg-slate-200 rounded w-64" />
+          </div>
+          <SignOutButton />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm animate-pulse"
+            >
+              <div className="h-4 bg-slate-200 rounded w-3/4 mb-4" />
+              <div className="h-8 bg-slate-200 rounded w-1/2" />
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-6 shadow-sm animate-pulse">
+            <div className="h-6 bg-slate-200 rounded w-1/4 mb-4" />
+            <div className="h-32 bg-slate-200 rounded" />
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm animate-pulse">
+            <div className="h-6 bg-slate-200 rounded w-1/4 mb-4" />
+            <div className="h-32 bg-slate-200 rounded" />
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  if (!company) {
+  if (!stats) {
     return <div className="p-8 text-center text-red-600">Kompanija nije pronađena</div>;
   }
+
+  const { company, ordersByStatus, totalRevenue, revenueTrend, topCustomers, catalogCompleteness } =
+    stats;
+  const revenueNum = Number(totalRevenue);
+
+  const orderStatusChartData = ordersByStatus.map((s) => ({
+    label: statusLabels[s.status] || s.status,
+    value: s.count,
+    color: statusColors[s.status] || '#64748b',
+  }));
+
+  const revenueChartData = revenueTrend.map((r) => ({
+    label: r.month,
+    value: r.revenue,
+    color: '#10b981',
+  }));
 
   return (
     <div className="p-8">
@@ -162,11 +275,87 @@ export default function CompanyDetailPage() {
           </Link>
           <h1 className="text-2xl font-bold">{company.name}</h1>
           <p className="text-slate-500">
-            Slug: {company.slug} • {company._count.users} korisnika • {company._count.orders}{' '}
+            Slug: {company.slug} • {company.counts.users} korisnika • {company.counts.orders}{' '}
             narudžbina
           </p>
         </div>
         <SignOutButton />
+      </div>
+
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Korisnici" value={company.counts.users} />
+        <StatCard label="Narudžbine" value={company.counts.orders} />
+        <StatCard label="Klijenti" value={company.counts.customerOrgs} />
+        <StatCard label="Prihod" value={`${company.currency} ${revenueNum.toLocaleString()}`} />
+      </div>
+
+      <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold">Status narudžbina</h2>
+          {orderStatusChartData.length > 0 ? (
+            <HorizontalBarChart data={orderStatusChartData} />
+          ) : (
+            <p className="text-slate-500 text-center py-8">Nema narudžbina</p>
+          )}
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold">Prihod (poslednjih 6 meseci)</h2>
+          {revenueTrend.some((r) => r.revenue > 0) ? (
+            <HorizontalBarChart data={revenueChartData} />
+          ) : (
+            <p className="text-slate-500 text-center py-8">Nema podataka o prihodu</p>
+          )}
+        </div>
+      </div>
+
+      <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold">Top klijenti (po broju narudžbina)</h2>
+          {topCustomers.length > 0 ? (
+            <ul className="space-y-2">
+              {topCustomers.map((c) => (
+                <li
+                  key={c.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-slate-50"
+                >
+                  <span className="font-medium">{c.name}</span>
+                  <span className="text-sm text-slate-500">{c.orderCount} narudžbina</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-slate-500 text-center py-8">Nema klijenata</p>
+          )}
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold">Kompletnost kataloga</h2>
+          <div className="space-y-3">
+            {catalogChecks.map(({ key, label, icon }) => {
+              const has = catalogCompleteness[key as keyof typeof catalogCompleteness];
+              return (
+                <div
+                  key={key}
+                  className="flex items-center justify-between p-3 rounded-lg bg-slate-50"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{icon}</span>
+                    <span className="font-medium text-slate-700">{label}</span>
+                  </div>
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                      has ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${has ? 'bg-green-500' : 'bg-red-500'}`}
+                    />
+                    {has ? 'Postoji' : 'Nedostaje'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <div className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -185,8 +374,22 @@ export default function CompanyDetailPage() {
             <dd className="font-medium">{company.tagline || '—'}</dd>
           </div>
           <div>
+            <dt className="text-slate-500">Valuta</dt>
+            <dd className="font-medium">{company.currency}</dd>
+          </div>
+          <div>
             <dt className="text-slate-500">URL prodavnice</dt>
             <dd className="font-medium font-mono text-sm">{company.slug}.localhost:3000</dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Katalog</dt>
+            <dd className="font-medium">
+              {company.counts.catalog.glassTypes} staklo, {company.counts.catalog.pvcProfiles}{' '}
+              profili, {company.counts.catalog.hardwareItems} oprema,{' '}
+              {company.counts.catalog.productTemplates} šablona,{' '}
+              {company.counts.catalog.processingOptions} obrada, {company.counts.catalog.priceLists}{' '}
+              cenovnika
+            </dd>
           </div>
         </dl>
       </div>

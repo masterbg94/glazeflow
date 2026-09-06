@@ -48,7 +48,9 @@ export async function middleware(req: NextRequest) {
     }
     if (
       path.startsWith('/dashboard') &&
-      !['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_STAFF', 'CUSTOMER'].includes(token.platformRole as string)
+      !['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_STAFF', 'CUSTOMER'].includes(
+        token.platformRole as string
+      )
     ) {
       return NextResponse.redirect(new URL('/login', req.url));
     }

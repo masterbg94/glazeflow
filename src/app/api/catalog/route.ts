@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get('type') || 'glass';
   const model = typeMap[type];
   if (!model) return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
-  const items = await model.findMany({ where: { companyId }, orderBy: { createdAt: 'desc' } });
+  const items = await model.findMany({ where: { companyId }, orderBy: { id: 'desc' } });
   return NextResponse.json({ items });
 }
 

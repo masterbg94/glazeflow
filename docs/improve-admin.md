@@ -5,17 +5,20 @@
 **Route:** `/admin` (platform admin, SUPER_ADMIN only)
 
 **Files:**
+
 - `src/app/(platform)/admin/page.tsx` — main dashboard (Client Component)
 - `src/app/(platform)/admin/companies/[id]/page.tsx` — company detail (Client Component)
 - `src/app/api/companies/route.ts` — list/create companies
 - `src/app/api/companies/[id]/route.ts` — company detail
 
 **What exists:**
+
 - Create company form
 - Companies table: name, slug, user count, order count, status, manage link
 - Company detail: info, users CRUD
 
 **What's missing:**
+
 - Platform-level aggregates (total companies, users, orders, revenue)
 - Order status breakdown
 - User role distribution
@@ -33,14 +36,15 @@
 **Purpose:** Single endpoint for all platform-wide dashboard data.
 
 **Response shape:**
+
 ```ts
 interface AdminStats {
   totals: {
     companies: number;
-    users: number;           // staff only (excl. CUSTOMER)
+    users: number; // staff only (excl. CUSTOMER)
     customerOrgs: number;
     orders: number;
-    revenue: string;         // Decimal → string sum of Order.total
+    revenue: string; // Decimal → string sum of Order.total
   };
   ordersByStatus: Record<OrderStatus, number>;
   usersByPlatformRole: Record<PlatformRole, number>;
@@ -66,25 +70,26 @@ interface AdminStats {
     timestamp: string;
     companyName: string;
     companySlug: string;
-    details: string;         // e.g. "Order #ORD-001 created (RSD 150,000)"
-  }>;                        // last 20 events
+    details: string; // e.g. "Order #ORD-001 created (RSD 150,000)"
+  }>; // last 20 events
 }
 ```
 
 **Queries needed:**
+
 ```ts
 // Totals
-prisma.company.count()
-prisma.user.count({ where: { platformRole: { not: 'CUSTOMER' } } })
-prisma.customerOrg.count()
-prisma.order.count()
-prisma.order.aggregate({ _sum: { total: true } })
+prisma.company.count();
+prisma.user.count({ where: { platformRole: { not: 'CUSTOMER' } } });
+prisma.customerOrg.count();
+prisma.order.count();
+prisma.order.aggregate({ _sum: { total: true } });
 
 // Orders by status
-prisma.order.groupBy({ by: ['status'], _count: true })
+prisma.order.groupBy({ by: ['status'], _count: true });
 
 // Users by platformRole
-prisma.user.groupBy({ by: ['platformRole'], _count: true })
+prisma.user.groupBy({ by: ['platformRole'], _count: true });
 
 // Companies with catalog counts
 prisma.company.findMany({
@@ -100,10 +105,10 @@ prisma.company.findMany({
         productTemplates: true,
         processingOptions: true,
         priceLists: true,
-      }
-    }
-  }
-})
+      },
+    },
+  },
+});
 
 // Recent activity (union of recent companies, orders, users)
 ```
@@ -115,6 +120,7 @@ prisma.company.findMany({
 ### 2. Enhanced Admin Page UI (`src/app/(platform)/admin/page.tsx`)
 
 **Layout:**
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Platform Administrator                    [SignOut]          │
@@ -145,6 +151,7 @@ prisma.company.findMany({
 ```
 
 **Components to add:**
+
 - `StatCard` — label, value, optional trend
 - `HorizontalBarChart` — pure CSS, no deps
 - `RoleDistribution` — simple list with colored dots
@@ -157,6 +164,7 @@ prisma.company.findMany({
 ### 3. Company Detail Page Enhancements
 
 **Add to `src/app/(platform)/admin/companies/[id]/page.tsx`:**
+
 - Order status breakdown for this company
 - Revenue trend (last 6 months) — simple bar chart
 - Top customers by order count
@@ -177,15 +185,15 @@ prisma.company.findMany({
 
 ## Implementation Order
 
-| Phase | Task | Files |
-|-------|------|-------|
-| 1 | Create `/api/admin/stats/route.ts` | New file |
-| 2 | Update `/api/companies/route.ts` to include catalog counts | Edit existing |
-| 3 | Build UI components (StatCard, BarChart, ActivityFeed, ExpandableRow) | New files in `components/admin/` |
-| 4 | Refactor `admin/page.tsx` to use new API + components | Edit existing |
-| 5 | Enhance company detail page | Edit existing |
-| 6 | Add loading/error/skeleton states | Edit |
-| 7 | Manual test with seeded data | `npm run dev` |
+| Phase | Task                                                                  | Files                            |
+| ----- | --------------------------------------------------------------------- | -------------------------------- |
+| 1     | Create `/api/admin/stats/route.ts`                                    | New file                         |
+| 2     | Update `/api/companies/route.ts` to include catalog counts            | Edit existing                    |
+| 3     | Build UI components (StatCard, BarChart, ActivityFeed, ExpandableRow) | New files in `components/admin/` |
+| 4     | Refactor `admin/page.tsx` to use new API + components                 | Edit existing                    |
+| 5     | Enhance company detail page                                           | Edit existing                    |
+| 6     | Add loading/error/skeleton states                                     | Edit                             |
+| 7     | Manual test with seeded data                                          | `npm run dev`                    |
 
 ---
 
