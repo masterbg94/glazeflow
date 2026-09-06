@@ -10,7 +10,9 @@ import { prisma } from './prisma';
 // real deployments (NEXTAUTH_URL with a public host), so the session is shared
 // across company subdomains in production.
 const isLocalhost = (process.env.NEXTAUTH_URL || 'http://localhost:3000').includes('localhost');
-const sessionCookieDomain = isLocalhost ? undefined : `.${(process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000').split(':')[0]}`;
+const sessionCookieDomain = isLocalhost
+  ? undefined
+  : `.${(process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000').split(':')[0]}`;
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: 'jwt' },
@@ -38,7 +40,10 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) return null;
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
-          include: { company: true, customerOrg: true },
+          include: {
+            company: { select: { slug: true } },
+            customerOrg: { select: { id: true } },
+          },
         });
         if (!user || !user.passwordHash || !user.isActive) return null;
         const valid = await bcrypt.compare(credentials.password, user.passwordHash);

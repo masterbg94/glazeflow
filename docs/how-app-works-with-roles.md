@@ -83,4 +83,3 @@ Postoje dva načina:
 2. **Samo CUSTOMER može da kreira narudžbinu** — admin i staff ne mogu da poruče umesto kupca.
 3. **Cene se računaju uživo** — nema fiksnih cenovnika, sve se računa na osnovu dimenzija i opcija u realnom vremenu.
 4. **Svaka kompanija ima sopstvenu valutu, porez i markup** — super admin postavlja ove parametre prilikom kreiranja kompanije.
-

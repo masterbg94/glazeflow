@@ -5,7 +5,22 @@ import { requireRole } from '@/lib/rbac';
 export async function GET() {
   const session = await requireRole(['SUPER_ADMIN']);
   const companies = await prisma.company.findMany({
-    include: { _count: { select: { users: true, orders: true } } },
+    include: {
+      _count: {
+        select: {
+          users: true,
+          orders: true,
+          customerOrgs: true,
+          glassTypes: true,
+          pvcProfiles: true,
+          hardwareItems: true,
+          productTemplates: true,
+          processingOptions: true,
+          priceLists: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
   });
   return NextResponse.json({ companies });
 }

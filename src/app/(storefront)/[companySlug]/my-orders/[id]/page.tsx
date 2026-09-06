@@ -101,7 +101,9 @@ export default async function OrderDetail({
               <span className="mt-1 h-2 w-2 rounded-full bg-blue-500" />
               <div>
                 <p className="font-medium">{h.toStatus}</p>
-                <p className="text-xs text-slate-400">{new Date(h.createdAt).toLocaleString('sr-RS')}</p>
+                <p className="text-xs text-slate-400">
+                  {new Date(h.createdAt).toLocaleString('sr-RS')}
+                </p>
               </div>
             </div>
           ))}

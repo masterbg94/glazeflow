@@ -12,9 +12,12 @@ export default function Home() {
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-6 py-24 text-center">
-        <h1 className="text-5xl font-bold text-slate-900">Naručujte Staklo i PVC sa Cenama u Realnom Vremenu</h1>
+        <h1 className="text-5xl font-bold text-slate-900">
+          Naručujte Staklo i PVC sa Cenama u Realnom Vremenu
+        </h1>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-500">
-          B2B platforma za narudžbine koja povezuje proizvođače stakla/PVC-a sa montažama i instalaterima.
+          B2B platforma za narudžbine koja povezuje proizvođače stakla/PVC-a sa montažama i
+          instalaterima.
         </p>
         <div className="mt-8 flex justify-center gap-4">
           <Link
