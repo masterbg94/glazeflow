@@ -31,32 +31,64 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Only customers can create orders' }, { status: 403 });
   }
   if (!user.customerOrgId) {
-    return NextResponse.json({ error: 'Session missing customerOrgId — please log out and log in again' }, { status: 401 });
+    return NextResponse.json(
+      { error: 'Session missing customerOrgId — please log out and log in again' },
+      { status: 401 }
+    );
   }
 
   const body = await req.json();
-  const { companyId, items, shippingAddress, customerNotes, requestedDate } = body;
+  const { items, shippingAddress, customerNotes, requestedDate } = body;
 
-  const company = await prisma.company.findUnique({ where: { id: companyId } });
-  if (!company) return NextResponse.json({ error: 'Company not found' }, { status: 404 });
-
+  // companyId is NEVER trusted from client: derive from tenant's customerOrg.
   const customerOrg = await prisma.customerOrg.findUnique({
     where: { id: user.customerOrgId },
     include: { priceList: true },
   });
   if (!customerOrg) {
-    return NextResponse.json({ error: 'Customer org not found — please log out and log in again' }, { status: 401 });
+    return NextResponse.json(
+      { error: 'Customer org not found — please log out and log in again' },
+      { status: 401 }
+    );
   }
+
+  const company = await prisma.company.findUnique({ where: { id: customerOrg.companyId } });
+  if (!company) return NextResponse.json({ error: 'Company not found' }, { status: 404 });
+  const companyId = company.id;
+
   const discountPercent = customerOrg?.priceList?.discountPercent
     ? Number(customerOrg.priceList.discountPercent)
     : 0;
+
+  // Per-tenant price overrides (override sell price wins over base discount order:
+  // overrideSellPrice > override discountPercent > base sell price)
+  const overrides = await prisma.customerPriceOverride.findMany({
+    where: { customerOrgId: customerOrg.id, isActive: true },
+  });
+  const overrideFor = (
+    field: 'glassTypeId' | 'profileId' | 'hardwareId' | 'templateId',
+    id?: string | null
+  ) => {
+    if (!id) return undefined;
+    return overrides.find((o) => o[field] === id);
+  };
+  const applyOverride = (basePrice: number, override?: (typeof overrides)[number]): number => {
+    if (!override) return basePrice;
+    if (override.overrideSellPrice != null) return Number(override.overrideSellPrice);
+    if (override.discountPercent != null) {
+      return Math.round(basePrice * (1 - Number(override.discountPercent) / 100) * 100) / 100;
+    }
+    return basePrice;
+  };
 
   const computedItems = [];
   for (const item of items) {
     let profileSell;
     if (item.profileId) {
       const p = await prisma.pvcProfile.findUnique({ where: { id: item.profileId } });
-      profileSell = p ? Number(p.sellPricePerMeter) : undefined;
+      if (p) {
+        profileSell = applyOverride(Number(p.sellPricePerMeter), overrideFor('profileId', p.id));
+      }
     }
     const glassPanes = [];
     for (const pane of item.glassPanes ?? []) {
@@ -64,7 +96,7 @@ export async function POST(req: NextRequest) {
       if (!g) continue;
       glassPanes.push({
         glassTypeId: pane.glassTypeId,
-        sellPricePerSqm: Number(g.sellPricePerSqm),
+        sellPricePerSqm: applyOverride(Number(g.sellPricePerSqm), overrideFor('glassTypeId', g.id)),
         baseThicknessMm: g.baseThicknessMm,
         thicknessMm: pane.thicknessMm,
         thicknessSurchargePercentPerMm: Number(g.thicknessSurchargePercentPerMm),
@@ -74,7 +106,11 @@ export async function POST(req: NextRequest) {
     for (const h of item.hardware ?? []) {
       const hw = await prisma.hardwareItem.findUnique({ where: { id: h.hardwareId } });
       if (!hw) continue;
-      hardware.push({ hardwareId: h.hardwareId, sellPrice: Number(hw.sellPrice), quantity: h.quantity });
+      hardware.push({
+        hardwareId: h.hardwareId,
+        sellPrice: applyOverride(Number(hw.sellPrice), overrideFor('hardwareId', hw.id)),
+        quantity: h.quantity,
+      });
     }
     const processing = [];
     const processingItems = [];

@@ -4,19 +4,20 @@ Based on my analysis, here are the **major weak points** and a structured improv
 
 ## 🔴 Critical Architecture Weak Points
 
-| Area | Problem | Impact |
-|------|---------|--------|
+| Area                 | Problem                                                                                                                                                  | Impact                                                      |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | **Real-time System** | Logic scattered across 5+ files (`lib/realtime.ts`, `lib/notifications.ts`, `NotificationProvider.tsx`, `RealtimeOrderRefresher.tsx`, `OrderKanban.tsx`) | Hard to debug, race conditions, inconsistent event handling |
-| **Auth** | Middleware uses deprecated `getToken` + dual auth (middleware + RSC) | Race conditions, type-unsafe, Next.js 15 compat risk |
-| **Type Safety** | `session.user as any` everywhere, no shared types | Runtime errors, no autocomplete, refactoring risk |
-| **API Validation** | Zero input validation on any route | Security, data corruption, bad UX |
-| **Error Handling** | Inconsistent patterns, no global error boundary | Silent failures, poor debugging |
+| **Auth**             | Middleware uses deprecated `getToken` + dual auth (middleware + RSC)                                                                                     | Race conditions, type-unsafe, Next.js 15 compat risk        |
+| **Type Safety**      | `session.user as any` everywhere, no shared types                                                                                                        | Runtime errors, no autocomplete, refactoring risk           |
+| **API Validation**   | Zero input validation on any route                                                                                                                       | Security, data corruption, bad UX                           |
+| **Error Handling**   | Inconsistent patterns, no global error boundary                                                                                                          | Silent failures, poor debugging                             |
 
 ---
 
 ## 📋 Structured Improvement Plan
 
 ### Phase 1: Foundation (Week 1-2) — **Do First**
+
 ```
 1. Migrate auth from getToken → getSession in middleware (Next.js 15 compat)
 2. Create shared types package: @glazeflow/types (session, events, api contracts)
@@ -26,6 +27,7 @@ Based on my analysis, here are the **major weak points** and a structured improv
 ```
 
 ### Phase 2: Real-time Consolidation (Week 2-3)
+
 ```
 1. Single source of truth: lib/events.ts with typed event definitions
 2. Move all publishToUsers calls from API routes → server actions / service layer
@@ -37,6 +39,7 @@ Based on my analysis, here are the **major weak points** and a structured improv
 ```
 
 ### Phase 3: API Layer Hardening (Week 3-4)
+
 ```
 1. Create API route wrapper: withAuth, withRole, withCompanyScope
 2. Standardize error responses: { error: string, code: string, status: number }
@@ -46,6 +49,7 @@ Based on my analysis, here are the **major weak points** and a structured improv
 ```
 
 ### Phase 4: Client Architecture (Week 4-5)
+
 ```
 1. Split OrderWizard into: WizardSteps, PricingPanel, CartSidebar (each <200 lines)
 2. Add React Hook Form + Zod for form validation
@@ -55,6 +59,7 @@ Based on my analysis, here are the **major weak points** and a structured improv
 ```
 
 ### Phase 5: Quality & Observability (Week 5-6)
+
 ```
 1. Configure Vitest + Playwright (unit + e2e)
 2. Add OpenTelemetry tracing for API routes
@@ -67,12 +72,12 @@ Based on my analysis, here are the **major weak points** and a structured improv
 
 ## 🎯 Quick Wins (Can Do Immediately)
 
-| Fix | Effort | Value |
-|-----|--------|-------|
-| Add `@ts-expect-error` comments where `as any` is unavoidable | 30 min | Type safety visibility |
-| Create `serializeOrder()` + `serializeOrderItem()` utilities | 1 hr | Eliminate scattered `.toString()` |
-| Fix glass pane price calc (line 142 in orders/route.ts) | 30 min | Correct pricing |
-| Add unique constraint on `Order.orderNumber` | 15 min | Prevent duplicates |
+| Fix                                                           | Effort | Value                             |
+| ------------------------------------------------------------- | ------ | --------------------------------- |
+| Add `@ts-expect-error` comments where `as any` is unavoidable | 30 min | Type safety visibility            |
+| Create `serializeOrder()` + `serializeOrderItem()` utilities  | 1 hr   | Eliminate scattered `.toString()` |
+| Fix glass pane price calc (line 142 in orders/route.ts)       | 30 min | Correct pricing                   |
+| Add unique constraint on `Order.orderNumber`                  | 15 min | Prevent duplicates                |
 
 ---
 

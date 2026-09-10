@@ -1,5 +1,11 @@
 import type { ReadableStreamDefaultController } from 'stream/web';
-import type { ServerRealtimeEvent, NotificationPayload, MessageAddPayload, OrderUpdatePayload, ServerEventPayload } from './events';
+import type {
+  MessageAddPayload,
+  NotificationPayload,
+  OrderUpdatePayload,
+  ServerEventPayload,
+  ServerRealtimeEvent,
+} from './events';
 
 const encoder = new TextEncoder();
 
@@ -11,17 +17,23 @@ const globalForRealtime = globalThis as unknown as {
   __glazeflowRealtimeClients?: Map<string, Set<SseClient>>;
 };
 
-const sseClients: Map<string, Set<SseClient>> =
-  globalForRealtime.__glazeflowRealtimeClients ?? new Map();
+const sseClients: Map<string, Set<SseClient>> = globalForRealtime.__glazeflowRealtimeClients ??
+new Map();
 globalForRealtime.__glazeflowRealtimeClients = sseClients;
 
-export function registerSSE(userId: string, controller: ReadableStreamDefaultController<Uint8Array>) {
+export function registerSSE(
+  userId: string,
+  controller: ReadableStreamDefaultController<Uint8Array>
+) {
   if (!sseClients.has(userId)) sseClients.set(userId, new Set());
   sseClients.get(userId)!.add({ controller });
   sendTo(userId, { type: 'connected' });
 }
 
-export function unregisterSSE(userId: string, controller: ReadableStreamDefaultController<Uint8Array>) {
+export function unregisterSSE(
+  userId: string,
+  controller: ReadableStreamDefaultController<Uint8Array>
+) {
   const clients = sseClients.get(userId);
   if (!clients) return;
   const client = [...clients].find((c) => c.controller === controller);

@@ -12,7 +12,12 @@ function getCustomerRedirect(): string {
   if (typeof window === 'undefined') return '/dashboard';
   const host = window.location.hostname.split(':')[0];
   const rootHost = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000').split(':')[0];
-  if (host === rootHost || host === 'localhost' || host === '127.0.0.1' || host === `www.${rootHost}`) {
+  if (
+    host === rootHost ||
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === `www.${rootHost}`
+  ) {
     return '/dashboard';
   }
   const slug = host.replace(`.${rootHost}`, '').replace(rootHost, '');

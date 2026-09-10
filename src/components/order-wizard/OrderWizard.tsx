@@ -28,7 +28,6 @@ interface CatalogItem {
 }
 
 export function OrderWizard({
-  companyId,
   currency,
   defaultShippingAddress = '',
   glassTypes,
@@ -37,7 +36,6 @@ export function OrderWizard({
   templates,
   processingOptions,
 }: {
-  companyId: string;
   currency: string;
   defaultShippingAddress?: string;
   glassTypes: CatalogItem[];
@@ -228,7 +226,6 @@ export function OrderWizard({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          companyId,
           items: orderItems,
           shippingAddress,
           customerNotes,

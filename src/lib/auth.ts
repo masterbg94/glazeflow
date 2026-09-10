@@ -10,7 +10,9 @@ import { prisma } from './prisma';
 // real deployments (NEXTAUTH_URL with a public host), so the session is shared
 // across company subdomains in production.
 const isLocalhost = (process.env.NEXTAUTH_URL || 'http://localhost:3000').includes('localhost');
-const sessionCookieDomain = isLocalhost ? undefined : `.${(process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000').split(':')[0]}`;
+const sessionCookieDomain = isLocalhost
+  ? undefined
+  : `.${(process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000').split(':')[0]}`;
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: 'jwt' },
@@ -38,7 +40,10 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) return null;
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
-          include: { company: true, customerOrg: true },
+          include: {
+            company: { select: { slug: true } },
+            customerOrg: { select: { id: true, slug: true } },
+          },
         });
         if (!user || !user.passwordHash || !user.isActive) return null;
         const valid = await bcrypt.compare(credentials.password, user.passwordHash);
@@ -48,9 +53,12 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           platformRole: user.platformRole,
+          companyRole: user.companyRole,
           companyId: user.companyId,
           companySlug: user.company?.slug ?? null,
           customerOrgId: user.customerOrgId,
+          customerOrgSlug: user.customerOrg?.slug ?? null,
+          customerOrgRole: user.customerOrgRole,
         } as any;
       },
     }),
@@ -59,9 +67,12 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.platformRole = (user as any).platformRole;
+        token.companyRole = (user as any).companyRole;
         token.companyId = (user as any).companyId;
         token.companySlug = (user as any).companySlug;
         token.customerOrgId = (user as any).customerOrgId;
+        token.customerOrgSlug = (user as any).customerOrgSlug;
+        token.customerOrgRole = (user as any).customerOrgRole;
         token.uid = (user as any).id;
       }
       return token;
@@ -70,9 +81,12 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).id = token.uid;
         (session.user as any).platformRole = token.platformRole;
+        (session.user as any).companyRole = token.companyRole;
         (session.user as any).companyId = token.companyId;
         (session.user as any).companySlug = token.companySlug;
         (session.user as any).customerOrgId = token.customerOrgId;
+        (session.user as any).customerOrgSlug = token.customerOrgSlug;
+        (session.user as any).customerOrgRole = token.customerOrgRole;
       }
       return session;
     },

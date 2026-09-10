@@ -4,11 +4,7 @@ import { RealtimeOrderRefresher } from '@/components/dashboard/RealtimeOrderRefr
 import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-export default async function AdminOrderDetail({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function AdminOrderDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
   if (!session?.user) return <p>Molimo prijavite se.</p>;

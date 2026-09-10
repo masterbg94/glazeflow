@@ -20,7 +20,7 @@ export default async function DashboardHome() {
     prisma.order.aggregate({ where: { companyId }, _sum: { total: true } }),
   ]);
 
-  const serializedOrders = orders.map(o => ({
+  const serializedOrders = orders.map((o) => ({
     ...o,
     subtotal: o.subtotal.toString(),
     taxAmount: o.taxAmount.toString(),

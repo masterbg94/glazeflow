@@ -1,8 +1,9 @@
-"use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Bell } from "lucide-react";
-import { useNotifications } from "./NotificationProvider";
+'use client';
+
+import { Bell } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { useNotifications } from './NotificationProvider';
 
 export function NotificationBell({ orderBasePath }: { orderBasePath?: string }) {
   const { notifications, unread, markRead, clearAll } = useNotifications();
@@ -48,7 +49,7 @@ export function NotificationBell({ orderBasePath }: { orderBasePath?: string }) 
               key={n.id}
               onClick={() => onClick(n)}
               className={`block w-full border-b border-slate-100 p-3 text-left hover:bg-slate-50 ${
-                n.isRead ? "opacity-60" : ""
+                n.isRead ? 'opacity-60' : ''
               }`}
             >
               <p className="text-sm font-medium">{n.title}</p>

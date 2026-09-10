@@ -1,29 +1,25 @@
 import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { getCompanyBySlug } from '@/lib/tenant';
+import { getTenantBySlug } from '@/lib/tenant';
 
 export default async function StorefrontHome({
   params,
 }: {
   params: Promise<{ companySlug: string }>;
 }) {
-  const { companySlug } = await params;
-  const company = await getCompanyBySlug(companySlug);
+  const { companySlug: tenantSlug } = await params;
+  const tenant = await getTenantBySlug(tenantSlug);
 
   return (
     <div>
-      <section
-        className="rounded-2xl p-10 text-white"
-        style={{
-          background: 'linear-gradient(to right, var(--brand-primary), var(--brand-secondary))',
-        }}
-      >
-        <h1 className="text-3xl font-bold">{company.tagline || `Dobrodošli u ${company.name}`}</h1>
+      <section className="rounded-2xl bg-gradient-to-r from-blue-700 to-slate-900 p-10 text-white">
+        <h1 className="text-3xl font-bold">Dobrodošli, {tenant.name}</h1>
         <p className="mt-3 max-w-xl text-white/80">
-          Poručite staklo, PVC profile i gotove prozore/vrata uz live cenovinu na osnovu dimenzija.
+          Poručite od dobavljača {tenant.company.name}: staklo, PVC profile, prozore i vrata uz live
+          cene na osnovu dimenzija.
         </p>
         <Link
-          href={`/${companySlug}/order`}
+          href={`/${tenantSlug}/order`}
           className="mt-6 inline-flex items-center gap-2 rounded-lg bg-white px-5 py-3 font-medium text-blue-600 hover:bg-slate-100"
         >
           Počnite narudžbinu <ArrowRight size={16} />
@@ -33,15 +29,15 @@ export default async function StorefrontHome({
         {[
           {
             title: 'Live Pricing',
-            desc: 'Prices calculate instantly as you enter dimensions and select options.',
+            desc: 'Cene se računaju odmah po vašem cenovniku dok unosite dimenzije.',
           },
           {
-            title: 'Multi-Item Orders',
-            desc: 'Add many glass pieces, profiles, and windows to one purchase order.',
+            title: 'Više stavki',
+            desc: 'Dodajte više stakala, profila i prozora u jednu narudžbinu.',
           },
           {
-            title: 'Track Everything',
-            desc: 'Follow each order from confirmation to production to delivery.',
+            title: 'Praćenje statusa',
+            desc: 'Pratite narudžbinu od potvrde do proizvodnje i isporuke.',
           },
         ].map((f) => (
           <div key={f.title} className="rounded-xl border border-slate-200 bg-white p-6">

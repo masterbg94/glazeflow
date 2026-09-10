@@ -41,27 +41,41 @@ the agent runtime activates the matching skill.
 ## Critical Issues (from terminal log)
 
 ### 1. Prisma `companyId` null errors
+
 **Location**: `src/app/(company)/dashboard/page.tsx:7`, `src/app/(company)/dashboard/orders/page.tsx:7`
 **Cause**: SUPER_ADMIN user (seed line 10-18) has no `companyId`. Session returns `companyId: null`. Prisma queries fail with `Argument companyId must not be null`.
 **Fix**: Guard queries — redirect if `!companyId`, or scope to platform admin view. Example:
+
 ```ts
 const companyId = (session?.user as any).companyId;
 if (!companyId) redirect('/admin'); // or return empty state
 ```
 
 ### 2. Decimal objects not serializable to Client Components
+
 **Error**: `Only plain objects can be passed to Client Components from Server Components. Decimal objects are not supported.`
 **Affected fields** (from schema): `Order.subtotal`, `taxAmount`, `discountAmount`, `total`; `OrderItem.lengthM`, `unitPrice`, `lineTotal`; catalog pricing fields.
 **Fix**: Serialize Decimal → string/number before passing to client components. Pattern in `src/app/(company)/dashboard/orders/[id]/page.tsx:105-106`:
+
 ```ts
-{item.unitPrice.toString()}  // Decimal → string
-{order.total.toString()} {order.currency}
+{
+  item.unitPrice.toString();
+} // Decimal → string
+{
+  order.total.toString();
+}
+{
+  order.currency;
+}
 ```
+
 Apply this pattern everywhere Prisma Decimal fields cross Server→Client boundary.
 
 ### 3. Cross-origin dev origin blocked
+
 **Error**: `Blocked cross-origin request to Next.js dev resource from "192.168.10.95"`
 **Fix**: Add to `next.config.ts`:
+
 ```ts
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['192.168.10.95'],
@@ -70,47 +84,60 @@ const nextConfig: NextConfig = {
 ```
 
 ### 4. Slow notification stream (14–56s)
+
 **Endpoint**: `/api/notifications/stream` — likely SSE long-polling holding connection. Investigate `src/app/api/notifications/stream/route.ts` for timeout/heartbeat issues.
 
 ---
 
 ## Commands
 
-| Task | Command |
-|------|---------|
-| Dev server | `npm run dev` |
-| Build (includes prisma generate) | `npm run build` |
-| DB push (schema → sqlite) | `npm run db:push` |
-| Seed DB | `npm run db:seed` |
-| Prisma Studio | `npm run db:studio` |
-| Lint | `npm run lint` |
-| Format check | `npm run format:check` |
-| Format write | `npm run format` |
+| Task                             | Command                |
+| -------------------------------- | ---------------------- |
+| Dev server                       | `npm run dev`          |
+| Build (includes prisma generate) | `npm run build`        |
+| DB push (schema → sqlite)        | `npm run db:push`      |
+| Seed DB                          | `npm run db:seed`      |
+| Prisma Studio                    | `npm run db:studio`    |
+| Lint                             | `npm run lint`         |
+| Format check                     | `npm run format:check` |
+| Format write                     | `npm run format`       |
 
 ---
 
 ## Architecture Notes
 
-- **Next.js 15** (App Router, Server Components default)
+- **Next.js 16** (App Router, Server Components default; `next lint` removed — use build + prettier)
 - **NextAuth v4** (Credentials provider, JWT strategy)
 - **Prisma** + SQLite (dev), PostgreSQL (prod likely)
-- **Multi-tenant**: `Company` = tenant; users have `companyId` (staff) or `customerOrgId` (customers)
-- **Route groups**: `(company)` = supplier dashboard, `(storefront)` = customer portal, `(auth)` = login/register, `(platform)` = super-admin
+- **Business model (post-fix, see `docs/BUSINESS_LOGIC_FIX.md`)**: exactly ONE main company
+  (`Company.isMainCompany = true`) owns catalog and prices. Tenants are `CustomerOrg`
+  rows with `slug` (subdomain), `priceListId`, and `CustomerPriceOverride[]`.
+  Never create a second `Company` row. Tenant creation goes through `/api/tenants`
+  (SUPER_ADMIN / main COMPANY_ADMIN), never `/api/companies` POST (blocked).
+- **Roles**: main company — `COMPANY_ADMIN` / `COMPANY_PRODUCTION` (manager) /
+  `PRODUCTION_WORKER` (status forward only). Tenant users: `platformRole=CUSTOMER`
+  + `customerOrgRole` = `TENANT_ADMIN` (sees `/finance`) or `TENANT_MANAGER`.
+- **Tenant subdomains**: middleware rewrites `X.ROOT` → `/X/...` (tenant storefront).
+  `/dashboard` and `/admin` are blocked on tenant subdomains.
+- **Route groups**: `(company)` = main company dashboard, `(storefront)` = tenant portal, `(auth)` = login (register UI is closed), `(platform)` = super-admin
 
 ---
 
 ## Session / Auth Patterns
 
 - `getSession()` from `src/lib/auth.ts` returns server session
-- User object extended with: `platformRole`, `companyId`, `companySlug`, `customerOrgId`, `id`
+- User object extended with: `platformRole`, `companyRole`, `companyId`, `companySlug`, `customerOrgId`, `customerOrgSlug`, `customerOrgRole`, `id`
 - **Always cast**: `const user = session?.user as any` before accessing custom fields
 - SUPER_ADMIN has `companyId: null` — handle explicitly in `(company)` routes
+- Order creation NEVER trusts client `companyId`; it is derived from session `customerOrgId`
+- `requireRole` throws; map with `toHttpError` from `src/lib/rbac.ts` in route handlers
 
 ---
 
 ## Decimal Serialization Rule
 
 **Never pass Prisma Decimal directly to Client Components**. Convert at Server Component boundary:
+
 ```ts
 // In Server Component (RSC)
 const orders = await prisma.order.findMany({...});
@@ -135,6 +162,7 @@ const serialized = orders.map(o => ({
 ## Testing / Verification
 
 No test suite configured. Verify manually:
+
 1. `npm run db:push && npm run db:seed`
 2. `npm run dev`
 3. Login as `admin@acme.test` / `Password123!` → dashboard loads (companyId present)

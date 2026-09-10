@@ -32,13 +32,13 @@ organization. See `prisma/schema.prisma` for authoritative enum and relation nam
 
 ## Intended combinations
 
-| `platformRole` | `companyRole` | Meaning |
-|---|---|---|
-| `SUPER_ADMIN` | usually `null` | Platform owner, not a company employee |
-| `COMPANY_ADMIN` | `COMPANY_ADMIN` | Full supplier-company administrator |
-| `COMPANY_STAFF` | `COMPANY_SALES` | Supplier sales employee |
-| `COMPANY_STAFF` | `COMPANY_PRODUCTION` | Supplier production employee |
-| `CUSTOMER` | usually `null` | Customer organization user |
+| `platformRole`  | `companyRole`        | Meaning                                |
+| --------------- | -------------------- | -------------------------------------- |
+| `SUPER_ADMIN`   | usually `null`       | Platform owner, not a company employee |
+| `COMPANY_ADMIN` | `COMPANY_ADMIN`      | Full supplier-company administrator    |
+| `COMPANY_STAFF` | `COMPANY_SALES`      | Supplier sales employee                |
+| `COMPANY_STAFF` | `COMPANY_PRODUCTION` | Supplier production employee           |
+| `CUSTOMER`      | usually `null`       | Customer organization user             |
 
 ## Example from the admin table
 

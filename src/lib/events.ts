@@ -48,8 +48,10 @@ export type ServerRealtimeEvent =
   | { event: 'order:update'; payload: OrderUpdatePayload };
 
 // Type helper to extract payload by event name
-export type ServerEventPayload<E extends ServerRealtimeEvent['event']> =
-  Extract<ServerRealtimeEvent, { event: E }>['payload'];
+export type ServerEventPayload<E extends ServerRealtimeEvent['event']> = Extract<
+  ServerRealtimeEvent,
+  { event: E }
+>['payload'];
 
 // ============================================
 // CLIENT-SIDE EVENT TYPES (received via SSE)
@@ -99,9 +101,7 @@ export interface ClientOrderUpdateEvent {
 }
 
 export type ClientRealtimeEvent =
-  | ClientNotificationEvent
-  | ClientMessageAddEvent
-  | ClientOrderUpdateEvent;
+  ClientNotificationEvent | ClientMessageAddEvent | ClientOrderUpdateEvent;
 
 // ============================================
 // TYPE GUARDS
@@ -110,9 +110,11 @@ export type ClientRealtimeEvent =
 export function isClientRealtimeEvent(data: unknown): data is ClientRealtimeEvent {
   if (!data || typeof data !== 'object') return false;
   const d = data as Record<string, unknown>;
-  return typeof d.event === 'string' &&
+  return (
+    typeof d.event === 'string' &&
     ['notification', 'message:add', 'order:update'].includes(d.event as string) &&
-    d.payload !== undefined;
+    d.payload !== undefined
+  );
 }
 
 export function isNotificationEvent(data: unknown): data is ClientNotificationEvent {
