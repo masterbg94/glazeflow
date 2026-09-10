@@ -21,3 +21,14 @@ export function assertSameCompany(
     throw new ForbiddenError('Cross-tenant access denied');
   }
 }
+
+/** Map auth errors to HTTP responses in route handlers. */
+export function toHttpError(err: unknown): Response {
+  if (err instanceof UnauthorizedError) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (err instanceof ForbiddenError) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  throw err;
+}

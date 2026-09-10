@@ -71,7 +71,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         companyId: transition.order.companyId,
         OR: [
           { platformRole: { in: ['COMPANY_ADMIN', 'COMPANY_STAFF'] } },
-          { companyRole: { in: ['COMPANY_PRODUCTION', 'COMPANY_SALES', 'PRODUCTION_WORKER'] } },
+          { companyRole: { in: ['COMPANY_PRODUCTION', 'COMPANY_SALES'] } },
         ],
       },
     });

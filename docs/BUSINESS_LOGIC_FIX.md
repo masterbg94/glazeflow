@@ -13,18 +13,20 @@
 ## Roles
 
 ### Main company (www.dubing.rs)
-| Role | platformRole | companyRole | Powers |
-|---|---|---|---|
-| Superadmin (developer) | `SUPER_ADMIN` | — | Full access incl. logs, all companies, debugging |
-| Admin | `COMPANY_ADMIN` | `COMPANY_ADMIN` | Everything incl. catalog/price lists/tenants |
-| Manager | `COMPANY_STAFF` | `COMPANY_PRODUCTION` | Orders, statuses (backward needs admin approval), no catalog prices |
-| Worker | `COMPANY_STAFF` | `PRODUCTION_WORKER` | Only order status forward |
+
+| Role                   | platformRole    | companyRole          | Powers                                                              |
+| ---------------------- | --------------- | -------------------- | ------------------------------------------------------------------- |
+| Superadmin (developer) | `SUPER_ADMIN`   | —                    | Full access incl. logs, all companies, debugging                    |
+| Admin                  | `COMPANY_ADMIN` | `COMPANY_ADMIN`      | Everything incl. catalog/price lists/tenants                        |
+| Manager                | `COMPANY_STAFF` | `COMPANY_PRODUCTION` | Orders, statuses (backward needs admin approval), no catalog prices |
+| Worker                 | `COMPANY_STAFF` | `PRODUCTION_WORKER`  | Only order status forward                                           |
 
 ### Tenant (tenant1.dubing.rs)
-| Role | platformRole | customerOrgRole (new) | Powers |
-|---|---|---|---|
-| Tenant admin | `CUSTOMER` | `TENANT_ADMIN` | Order, track orders, see own prices, see totals + payable (orders in DELIVERED = due) |
-| Tenant manager | `CUSTOMER` | `TENANT_MANAGER` | Order, track orders. No finance view |
+
+| Role           | platformRole | customerOrgRole (new) | Powers                                                                                |
+| -------------- | ------------ | --------------------- | ------------------------------------------------------------------------------------- |
+| Tenant admin   | `CUSTOMER`   | `TENANT_ADMIN`        | Order, track orders, see own prices, see totals + payable (orders in DELIVERED = due) |
+| Tenant manager | `CUSTOMER`   | `TENANT_MANAGER`      | Order, track orders. No finance view                                                  |
 
 Tenant NEVER edits catalog, prices, or anything on main company.
 
@@ -32,18 +34,18 @@ Tenant NEVER edits catalog, prices, or anything on main company.
 
 ## Current Code vs Required
 
-| # | Problem | File(s) |
-|---|---|---|
-| 1 | Admin panel creates new `Company` rows as "tenants" | `src/app/api/companies/route.ts`, `CreateCompanyForm.tsx` |
-| 2 | Tenants need subdomain: `CustomerOrg` has no `slug` | `prisma/schema.prisma` |
-| 3 | Middleware rewrites subdomains by main-company slug only; no tenant subdomain support | `src/middleware.ts` |
-| 4 | Catalog CRUD allowed for any `isProducer` company — must be exactly one main company | `src/app/api/catalog/route.ts` |
-| 5 | Storefront `[companySlug]` resolves Company (supplier). Must resolve tenant by CustomerOrg slug, serve main catalog with tenant pricing | `src/app/(storefront)/[companySlug]/*`, `src/lib/tenant.ts` |
-| 6 | No tenant roles (TENANT_ADMIN/TENANT_MANAGER) | `prisma/schema.prisma` `CompanyRole` enum |
-| 7 | No payment tracking: tenant admin needs "orders done = payable" | `Order` model needs `paymentStatus` |
-| 8 | Tenant sees cost prices? Must see ONLY own sell prices (priceList/override applied), never costPrice | storefront serialization, `/api/orders` |
-| 9 | Approval chain: tenant cannot change order status backward; only main company staff does. Tenants mostly read-only status + cancel own NEW order (optional) | `src/lib/status-transitions.ts` |
-| 10 | `isProducer` flag per-company is wrong concept. Replace with single MAIN company invariant | `prisma/schema.prisma`, seed |
+| #   | Problem                                                                                                                                                     | File(s)                                                     |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| 1   | Admin panel creates new `Company` rows as "tenants"                                                                                                         | `src/app/api/companies/route.ts`, `CreateCompanyForm.tsx`   |
+| 2   | Tenants need subdomain: `CustomerOrg` has no `slug`                                                                                                         | `prisma/schema.prisma`                                      |
+| 3   | Middleware rewrites subdomains by main-company slug only; no tenant subdomain support                                                                       | `src/middleware.ts`                                         |
+| 4   | Catalog CRUD allowed for any `isProducer` company — must be exactly one main company                                                                        | `src/app/api/catalog/route.ts`                              |
+| 5   | Storefront `[companySlug]` resolves Company (supplier). Must resolve tenant by CustomerOrg slug, serve main catalog with tenant pricing                     | `src/app/(storefront)/[companySlug]/*`, `src/lib/tenant.ts` |
+| 6   | No tenant roles (TENANT_ADMIN/TENANT_MANAGER)                                                                                                               | `prisma/schema.prisma` `CompanyRole` enum                   |
+| 7   | No payment tracking: tenant admin needs "orders done = payable"                                                                                             | `Order` model needs `paymentStatus`                         |
+| 8   | Tenant sees cost prices? Must see ONLY own sell prices (priceList/override applied), never costPrice                                                        | storefront serialization, `/api/orders`                     |
+| 9   | Approval chain: tenant cannot change order status backward; only main company staff does. Tenants mostly read-only status + cancel own NEW order (optional) | `src/lib/status-transitions.ts`                             |
+| 10  | `isProducer` flag per-company is wrong concept. Replace with single MAIN company invariant                                                                  | `prisma/schema.prisma`, seed                                |
 
 ---
 
@@ -79,7 +81,7 @@ model Company {
 
 model CustomerOrg {
   // add:
-  slug          String  @unique   // subdomain: tenant1.dubing.rs
+  slug String @unique // subdomain: tenant1.dubing.rs
   // priceListId already exists
 }
 
@@ -136,22 +138,26 @@ Simplest: rewrite blindly, validate in `(storefront)/[tenantSlug]/layout.tsx`.
 ## API Changes
 
 ### `/api/companies` (admin panel)
+
 - POST must NO LONGER create `Company`. Rework to create `CustomerOrg` +
   slug + priceList + initial TENANT_ADMIN user. Keep SUPER_ADMIN-only guard.
 - Actually better: new endpoint `/api/tenants` (CustomerOrg CRUD).
   `/api/companies` read-only for the single main company settings.
 
 ### `/api/catalog`
+
 - Guard: session user's company must be `isMainCompany`, and role
   SUPER_ADMIN or COMPANY_ADMIN. Workers/managers read-only or no access.
 
 ### `/api/orders` POST
+
 - Already restricts to CUSTOMER — keep.
 - Force `companyId` = tenant's main company (derive from `customerOrg.companyId`,
   never trust client-sent companyId).
 - Pricing must use tenant priceList + overrides ONLY; never expose costPrice.
 
 ### Status transitions (`src/lib/status-transitions.ts`)
+
 - Main company: worker forward-only; manager forward free, backward/cancel
   needs COMPANY_ADMIN approval; admin/superadmin free. (Current code ≈ this, OK.)
 - Tenant (platformRole CUSTOMER): NO status changes on main pipeline.

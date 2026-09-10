@@ -14,6 +14,7 @@ export async function GET() {
     ordersByStatus,
     usersByPlatformRole,
     companiesDetail,
+    tenantsDetail,
   ] = await Promise.all([
     prisma.company.count(),
     prisma.user.count({ where: { platformRole: { not: 'CUSTOMER' } } }),
@@ -40,9 +41,22 @@ export async function GET() {
       },
       orderBy: { createdAt: 'desc' },
     }),
+    prisma.customerOrg.findMany({
+      include: {
+        priceList: { select: { id: true, name: true, discountPercent: true } },
+        _count: { select: { orders: true, members: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
   ]);
 
   const recentCompanies = await prisma.company.findMany({
+    take: 5,
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, name: true, slug: true, createdAt: true },
+  });
+
+  const recentTenants = await prisma.customerOrg.findMany({
     take: 5,
     orderBy: { createdAt: 'desc' },
     select: { id: true, name: true, slug: true, createdAt: true },
@@ -85,6 +99,15 @@ export async function GET() {
       entityType: 'company' as const,
       details: `Company "${c.name}" created`,
     })),
+    ...recentTenants.map((t) => ({
+      type: 'tenant_created' as const,
+      timestamp: t.createdAt.toISOString(),
+      companyName: t.name,
+      companySlug: t.slug,
+      entityId: t.id,
+      entityType: 'tenant' as const,
+      details: `Tenant "${t.name}" created`,
+    })),
     ...recentOrders.map((o) => ({
       type: 'order_created' as const,
       timestamp: o.createdAt.toISOString(),
@@ -122,6 +145,9 @@ export async function GET() {
     name: c.name,
     slug: c.slug,
     isActive: c.isActive,
+    isMainCompany: c.isMainCompany,
+    createdAt: c.createdAt,
+    type: 'company' as const,
     counts: {
       users: c._count.users,
       orders: c._count.orders,
@@ -137,6 +163,35 @@ export async function GET() {
     },
   }));
 
+  const tenantsWithDetail = tenantsDetail.map((t) => ({
+    id: t.id,
+    name: t.name,
+    slug: t.slug,
+    isActive: true,
+    createdAt: t.createdAt,
+    type: 'tenant' as const,
+    priceList: t.priceList
+      ? { ...t.priceList, discountPercent: t.priceList.discountPercent.toString() }
+      : null,
+    counts: {
+      users: t._count.members,
+      orders: t._count.orders,
+      customerOrgs: 0,
+      catalog: {
+        glassTypes: 0,
+        pvcProfiles: 0,
+        hardwareItems: 0,
+        productTemplates: 0,
+        processingOptions: 0,
+        priceLists: 0,
+      },
+    },
+  }));
+
+  const allEntities = [...companiesWithCatalog, ...tenantsWithDetail].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
   return NextResponse.json({
     totals: {
       companies: companiesCount,
@@ -147,7 +202,7 @@ export async function GET() {
     },
     ordersByStatus: ordersByStatusMap,
     usersByPlatformRole: usersByPlatformRoleMap,
-    companiesDetail: companiesWithCatalog,
+    companiesDetail: allEntities,
     recentActivity,
   });
 }

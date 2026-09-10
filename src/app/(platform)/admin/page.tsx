@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import {
   ActivityFeed,
   ExpandableRow,
@@ -13,21 +13,26 @@ import {
 import { CreateCompanyForm } from '@/components/admin/CreateCompanyForm';
 import { SignOutButton } from '@/components/auth/SignOutButton';
 
-interface Company {
+interface CompanyDetail {
   id: string;
   name: string;
   slug: string;
   isActive: boolean;
-  _count: {
+  type: 'company' | 'tenant';
+  isMainCompany?: boolean;
+  priceList?: { id: string; name: string; discountPercent: string } | null;
+  counts: {
     users: number;
     orders: number;
     customerOrgs: number;
-    glassTypes: number;
-    pvcProfiles: number;
-    hardwareItems: number;
-    productTemplates: number;
-    processingOptions: number;
-    priceLists: number;
+    catalog: {
+      glassTypes: number;
+      pvcProfiles: number;
+      hardwareItems: number;
+      productTemplates: number;
+      processingOptions: number;
+      priceLists: number;
+    };
   };
 }
 
@@ -41,32 +46,14 @@ interface AdminStats {
   };
   ordersByStatus: Record<string, number>;
   usersByPlatformRole: Record<string, number>;
-  companiesDetail: Array<{
-    id: string;
-    name: string;
-    slug: string;
-    isActive: boolean;
-    counts: {
-      users: number;
-      orders: number;
-      customerOrgs: number;
-      catalog: {
-        glassTypes: number;
-        pvcProfiles: number;
-        hardwareItems: number;
-        productTemplates: number;
-        processingOptions: number;
-        priceLists: number;
-      };
-    };
-  }>;
+  companiesDetail: CompanyDetail[];
   recentActivity: Array<{
-    type: 'company_created' | 'order_created' | 'user_created' | 'order_status_changed';
+    type: 'company_created' | 'tenant_created' | 'order_created' | 'user_created' | 'order_status_changed';
     timestamp: string;
     companyName: string;
     companySlug: string;
     entityId: string;
-    entityType: 'company' | 'order' | 'user';
+    entityType: 'company' | 'tenant' | 'order' | 'user';
     details: string;
   }>;
 }
@@ -128,8 +115,8 @@ export default function AdminPage() {
     fetchStats();
   }
 
-  function handleCompanyClick(companyId: string) {
-    router.push(`/admin/companies/${companyId}`);
+  function handleEntityClick(entityId: string, entityType: 'company' | 'tenant') {
+    router.push(`/admin/companies/${entityId}`);
   }
 
   useEffect(() => {
@@ -199,7 +186,7 @@ export default function AdminPage() {
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Kompanije" value={stats.totals.companies} />
-        <StatCard label="Korisnici (staff)" value={stats.totals.users} />
+        <StatCard label="Tenanti" value={stats.totals.customerOrgs} />
         <StatCard label="Narudžbine" value={stats.totals.orders} />
         <StatCard label="Ukupni prihod" value={`RSD ${revenueNum.toLocaleString()}`} />
       </div>
@@ -222,43 +209,97 @@ export default function AdminPage() {
 
       <div className="mb-8 rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-4">
-          <h2 className="text-lg font-semibold">Kompanije</h2>
+          <h2 className="text-lg font-semibold">Entiteti (Kompanije i Tenanti)</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left">
               <tr>
-                <th className="p-4">Kompanija</th>
+                <th className="p-4">Naziv</th>
                 <th className="p-4">Slug</th>
+                <th className="p-4">Tip</th>
                 <th className="p-4">Korisnici</th>
                 <th className="p-4">Narudžbine</th>
-                <th className="p-4">Klijenti</th>
-                <th className="p-4">Katalog</th>
+                <th className="p-4">Klijenti / Katalog</th>
+                <th className="p-4">Cenovnik</th>
                 <th className="p-4">Status</th>
                 <th className="p-4">Akcije</th>
-                <th className="p-4 w-10 text-center"></th>
               </tr>
             </thead>
             <tbody>
               {stats.companiesDetail.map((c) => (
-                <ExpandableRow
-                  key={c.id}
-                  companyName={c.name}
-                  companySlug={c.slug}
-                  counts={{
-                    users: c.counts.users,
-                    orders: c.counts.orders,
-                    customerOrgs: c.counts.customerOrgs,
-                    catalog: c.counts.catalog,
-                  }}
-                  isActive={c.isActive}
-                  onManageClick={() => handleCompanyClick(c.id)}
-                />
+                <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{c.name}</span>
+                      {c.isMainCompany && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                          GLAVNA
+                        </span>
+                      )}
+                      {c.type === 'tenant' && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                          TENANT
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="p-4 font-mono text-sm">{c.slug}</td>
+                  <td className="p-4">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                      c.type === 'company' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                    }`}>
+                      {c.type === 'company' ? 'Kompanija' : 'Tenant'}
+                    </span>
+                  </td>
+                  <td className="p-4">{c.counts.users}</td>
+                  <td className="p-4">{c.counts.orders}</td>
+                  <td className="p-4">
+                    {c.type === 'company' ? (
+                      <>
+                        <span>{c.counts.customerOrgs} klijenata</span>
+                        <br />
+                        <span className="text-xs text-slate-500">
+                          {c.counts.catalog.glassTypes} staklo, {c.counts.catalog.pvcProfiles} profili
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-slate-500">—</span>
+                    )}
+                  </td>
+                  <td className="p-4">
+                    {c.type === 'tenant' && c.priceList ? (
+                      <div>
+                        <span className="font-medium">{c.priceList.name}</span>
+                        <br />
+                        <span className="text-xs text-slate-500">Popust: {c.priceList.discountPercent}%</span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-500">—</span>
+                    )}
+                  </td>
+                  <td className="p-4">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                      c.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${c.isActive ? 'bg-green-500' : 'bg-red-500'}`} />
+                      {c.isActive ? 'Aktivan' : 'Neaktivan'}
+                    </span>
+                  </td>
+                  <td className="p-4 w-10 text-center">
+                    <button
+                      onClick={() => handleEntityClick(c.id, c.type)}
+                      className="text-blue-600 hover:underline text-sm font-medium"
+                    >
+                      Upravljaj
+                    </button>
+                  </td>
+                </tr>
               ))}
               {stats.companiesDetail.length === 0 && (
                 <tr>
                   <td colSpan={9} className="p-8 text-center text-slate-500">
-                    Još nema kompanija. Kreirajte jednu iznad.
+                    Još nema entiteta. Kreirajte tenant iznad.
                   </td>
                 </tr>
               )}

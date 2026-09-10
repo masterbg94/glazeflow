@@ -19,6 +19,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
       select: { isProducer: true },
     });
     isProducer = company?.isProducer ?? false;
+  } else if (user.platformRole === 'SUPER_ADMIN') {
+    const main = await prisma.company.findFirst({
+      where: { isMainCompany: true },
+      select: { isProducer: true },
+    });
+    isProducer = main?.isProducer ?? false;
   }
 
   return (

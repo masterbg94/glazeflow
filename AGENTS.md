@@ -106,20 +106,31 @@ const nextConfig: NextConfig = {
 
 ## Architecture Notes
 
-- **Next.js 15** (App Router, Server Components default)
+- **Next.js 16** (App Router, Server Components default; `next lint` removed — use build + prettier)
 - **NextAuth v4** (Credentials provider, JWT strategy)
 - **Prisma** + SQLite (dev), PostgreSQL (prod likely)
-- **Multi-tenant**: `Company` = tenant; users have `companyId` (staff) or `customerOrgId` (customers)
-- **Route groups**: `(company)` = supplier dashboard, `(storefront)` = customer portal, `(auth)` = login/register, `(platform)` = super-admin
+- **Business model (post-fix, see `docs/BUSINESS_LOGIC_FIX.md`)**: exactly ONE main company
+  (`Company.isMainCompany = true`) owns catalog and prices. Tenants are `CustomerOrg`
+  rows with `slug` (subdomain), `priceListId`, and `CustomerPriceOverride[]`.
+  Never create a second `Company` row. Tenant creation goes through `/api/tenants`
+  (SUPER_ADMIN / main COMPANY_ADMIN), never `/api/companies` POST (blocked).
+- **Roles**: main company — `COMPANY_ADMIN` / `COMPANY_PRODUCTION` (manager) /
+  `PRODUCTION_WORKER` (status forward only). Tenant users: `platformRole=CUSTOMER`
+  + `customerOrgRole` = `TENANT_ADMIN` (sees `/finance`) or `TENANT_MANAGER`.
+- **Tenant subdomains**: middleware rewrites `X.ROOT` → `/X/...` (tenant storefront).
+  `/dashboard` and `/admin` are blocked on tenant subdomains.
+- **Route groups**: `(company)` = main company dashboard, `(storefront)` = tenant portal, `(auth)` = login (register UI is closed), `(platform)` = super-admin
 
 ---
 
 ## Session / Auth Patterns
 
 - `getSession()` from `src/lib/auth.ts` returns server session
-- User object extended with: `platformRole`, `companyId`, `companySlug`, `customerOrgId`, `id`
+- User object extended with: `platformRole`, `companyRole`, `companyId`, `companySlug`, `customerOrgId`, `customerOrgSlug`, `customerOrgRole`, `id`
 - **Always cast**: `const user = session?.user as any` before accessing custom fields
 - SUPER_ADMIN has `companyId: null` — handle explicitly in `(company)` routes
+- Order creation NEVER trusts client `companyId`; it is derived from session `customerOrgId`
+- `requireRole` throws; map with `toHttpError` from `src/lib/rbac.ts` in route handlers
 
 ---
 

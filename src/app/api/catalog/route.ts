@@ -10,21 +10,30 @@ const typeMap: Record<string, any> = {
   processing: prisma.processingOption,
 };
 
-async function assertProducerCompany(companyId: string) {
+async function assertMainCompany(companyId: string) {
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { isProducer: true },
+    select: { isMainCompany: true },
   });
-  if (!company?.isProducer) {
-    throw new Error('Only producer company can manage catalog');
+  if (!company?.isMainCompany) {
+    throw new Error('Only the main company manages the catalog');
   }
 }
 
 export async function GET(req: NextRequest) {
   const session = await requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_STAFF']);
-  const companyId = (session.user as any).companyId;
+  const user = session.user as any;
+  // Superadmin without company: read catalog of the single main company.
+  let companyId = user.companyId as string | null;
+  if (!companyId && user.platformRole === 'SUPER_ADMIN') {
+    const main = await prisma.company.findFirst({
+      where: { isMainCompany: true },
+      select: { id: true },
+    });
+    companyId = main?.id ?? null;
+  }
   if (!companyId) return NextResponse.json({ error: 'No company' }, { status: 400 });
-  await assertProducerCompany(companyId);
+  await assertMainCompany(companyId);
   const searchParams = new URL(req.url).searchParams;
   const type = searchParams.get('type') || 'glass';
   const model = typeMap[type];
@@ -34,10 +43,19 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Catalog writes: main company admin or superadmin only. Managers/workers no.
   const session = await requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN']);
-  const companyId = (session.user as any).companyId;
+  const user = session.user as any;
+  let companyId = user.companyId as string | null;
+  if (!companyId && user.platformRole === 'SUPER_ADMIN') {
+    const main = await prisma.company.findFirst({
+      where: { isMainCompany: true },
+      select: { id: true },
+    });
+    companyId = main?.id ?? null;
+  }
   if (!companyId) return NextResponse.json({ error: 'No company' }, { status: 400 });
-  await assertProducerCompany(companyId);
+  await assertMainCompany(companyId);
   const body = await req.json();
   const type = body.type;
   const model = typeMap[type];

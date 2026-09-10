@@ -19,7 +19,17 @@ enum CompanyRole {
   COMPANY_ADMIN
   COMPANY_SALES
   COMPANY_PRODUCTION
-  PRODUCTION_WORKER
+}
+
+enum CustomerOrgRole {
+  TENANT_ADMIN
+  TENANT_MANAGER
+}
+
+enum PaymentStatus {
+  UNPAID
+  INVOICED
+  PAID
 }
 
 enum OrderAttachmentType {
@@ -89,6 +99,8 @@ model Company {
   subscriptionPlan String  @default("FREE")
   isActive         Boolean @default(true)
   isProducer       Boolean @default(false)
+  // Exactly ONE company is the main supplier. Tenants are CustomerOrg rows.
+  isMainCompany    Boolean @default(false)
 
   logoUrl        String?
   primaryColor   String  @default("#1d4ed8")
@@ -127,20 +139,21 @@ model Company {
 
 // ---------- Users & Customer Org ----------
 model User {
-  id            String       @id @default(cuid())
-  email         String       @unique
-  passwordHash  String?
-  name          String
-  phone         String?
-  platformRole  PlatformRole @default(CUSTOMER)
-  companyRole   CompanyRole?
-  companyId     String?
-  company       Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customerOrgId String?
-  customerOrg   CustomerOrg? @relation(fields: [customerOrgId], references: [id], onDelete: Cascade)
-  isActive      Boolean      @default(true)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id              String           @id @default(cuid())
+  email           String           @unique
+  passwordHash    String?
+  name            String
+  phone           String?
+  platformRole    PlatformRole     @default(CUSTOMER)
+  companyRole     CompanyRole?
+  customerOrgRole CustomerOrgRole?
+  companyId       String?
+  company         Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerOrgId   String?
+  customerOrg     CustomerOrg?     @relation(fields: [customerOrgId], references: [id], onDelete: Cascade)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   ordersCreated          Order[]                 @relation("OrderCustomer")
   ordersAssigned         Order[]                 @relation("OrderAssignee")
@@ -160,6 +173,7 @@ model CustomerOrg {
   companyId       String
   company         Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   name            String
+  slug            String?    @unique
   taxId           String?
   priceListId     String?
   priceList       PriceList? @relation(fields: [priceListId], references: [id])
@@ -200,6 +214,7 @@ model GlassType {
   priceOverrides CustomerPriceOverride[]
 
   @@index([companyId])
+  @@unique([companyId, name])
 }
 
 model PvcProfile {
@@ -227,6 +242,7 @@ model PvcProfile {
   savedConfigs   SavedConfiguration[]
 
   @@index([companyId])
+  @@unique([companyId, brand, systemName])
 }
 
 model HardwareItem {
@@ -250,6 +266,7 @@ model HardwareItem {
   priceOverrides    CustomerPriceOverride[]
 
   @@index([companyId])
+  @@unique([companyId, name])
 }
 
 model ProductTemplate {
@@ -272,6 +289,7 @@ model ProductTemplate {
   savedConfigs   SavedConfiguration[]
 
   @@index([companyId])
+  @@unique([companyId, name])
 }
 
 model ProcessingOption {
@@ -291,6 +309,7 @@ model ProcessingOption {
   orderItemProcessing OrderItemProcessing[]
 
   @@index([companyId])
+  @@unique([companyId, name])
 }
 
 // ---------- Price Lists ----------
@@ -307,6 +326,7 @@ model PriceList {
   customerOverrides CustomerPriceOverride[]
 
   @@index([companyId])
+  @@unique([companyId, name])
 }
 
 model CustomerPriceOverride {
@@ -345,12 +365,13 @@ model Order {
   assigneeId    String?
   assignee      User?       @relation("OrderAssignee", fields: [assigneeId], references: [id])
 
-  orderNumber    String      @unique
-  status         OrderStatus @default(NEW)
+  orderNumber    String        @unique
+  status         OrderStatus   @default(NEW)
+  paymentStatus  PaymentStatus @default(UNPAID)
   currency       String
   subtotal       Decimal
   taxAmount      Decimal
-  discountAmount Decimal     @default(0)
+  discountAmount Decimal       @default(0)
   total          Decimal
 
   shippingAddress   String?

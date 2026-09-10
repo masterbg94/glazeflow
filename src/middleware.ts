@@ -11,33 +11,35 @@ export async function middleware(req: NextRequest) {
   const path = url.pathname;
 
   const hostOnly = hostname.split(':')[0];
-  const cleanHost = hostOnly.replace(`.${ROOT_HOST}`, '').replace(ROOT_HOST, '');
+  const subdomain = hostOnly.replace(`.${ROOT_HOST}`, '').replace(ROOT_HOST, '');
   const isRoot =
     hostOnly === ROOT_HOST ||
     hostOnly === `www.${ROOT_HOST}` ||
     hostOnly === 'localhost' ||
     hostOnly === '127.0.0.1';
+  const isTenantSubdomain = !isRoot && !!subdomain && subdomain !== ROOT_HOST;
 
-  // Allow auth routes without subdomain rewriting
+  // Auth routes allowed everywhere (single login for root and tenants)
   if (path.startsWith('/login') || path.startsWith('/register') || path.startsWith('/(auth)')) {
-    if (isRoot) return NextResponse.next();
     return NextResponse.next();
   }
 
-  if (
-    !isRoot &&
-    cleanHost &&
-    cleanHost !== ROOT_HOST &&
-    !path.startsWith('/_next') &&
-    !path.startsWith('/api') &&
-    !path.startsWith('/login') &&
-    !path.startsWith('/register') &&
-    !path.startsWith('/dashboard') &&
-    !path.startsWith('/admin') &&
-    !path.startsWith(`/${cleanHost}`)
-  ) {
-    const rewritePath = path === '/' ? `/${cleanHost}` : `/${cleanHost}${path}`;
-    return NextResponse.rewrite(new URL(rewritePath, req.url));
+  // API + static: never rewrite
+  if (path.startsWith('/_next') || path.startsWith('/api')) {
+    return NextResponse.next();
+  }
+
+  if (isTenantSubdomain) {
+    // Main-company areas are forbidden on tenant subdomains
+    if (path.startsWith('/dashboard') || path.startsWith('/admin')) {
+      const loginUrl = new URL('/login', `http://${ROOT}`);
+      return NextResponse.redirect(loginUrl);
+    }
+    // Rewrite tenant subdomain to tenant storefront: /foo -> /<tenantSlug>/foo
+    if (!path.startsWith(`/${subdomain}`)) {
+      const rewritePath = path === '/' ? `/${subdomain}` : `/${subdomain}${path}`;
+      return NextResponse.rewrite(new URL(rewritePath, req.url));
+    }
   }
 
   if (path.startsWith('/dashboard') || path.startsWith('/admin')) {
@@ -48,9 +50,7 @@ export async function middleware(req: NextRequest) {
     }
     if (
       path.startsWith('/dashboard') &&
-      !['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_STAFF', 'CUSTOMER'].includes(
-        token.platformRole as string
-      )
+      !['SUPER_ADMIN', 'COMPANY_ADMIN', 'COMPANY_STAFF'].includes(token.platformRole as string)
     ) {
       return NextResponse.redirect(new URL('/login', req.url));
     }

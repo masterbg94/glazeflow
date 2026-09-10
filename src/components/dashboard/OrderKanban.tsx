@@ -17,7 +17,7 @@ interface Order {
   requestedDate?: string | null;
 }
 
-type CompanyRole = 'COMPANY_ADMIN' | 'COMPANY_SALES' | 'COMPANY_PRODUCTION' | 'PRODUCTION_WORKER';
+type CompanyRole = 'COMPANY_ADMIN' | 'COMPANY_SALES' | 'COMPANY_PRODUCTION';
 type PlatformRole = 'SUPER_ADMIN' | 'COMPANY_ADMIN' | 'COMPANY_STAFF' | 'CUSTOMER';
 type UserRole = CompanyRole | PlatformRole;
 
@@ -103,7 +103,9 @@ function getTransitionRule(
   const isMainCompany = isMainCompanyUser(userRole, platformRole);
   const approverRoles = getApproverRoles(userRole as CompanyRole, platformRole);
 
-  if (userRole === 'PRODUCTION_WORKER') {
+  const isCompanyManager = userRole === 'COMPANY_PRODUCTION' || userRole === 'COMPANY_SALES';
+
+  if (isCompanyManager) {
     if (isCancellation(toStatus))
       return { allowed: false, requiresApproval: false, approverRoles: [] };
     if (isForwardTransition(fromStatus, toStatus))
@@ -111,11 +113,9 @@ function getTransitionRule(
     return { allowed: false, requiresApproval: false, approverRoles: [] };
   }
 
-  if (
-    userRole === 'COMPANY_PRODUCTION' ||
-    userRole === 'COMPANY_SALES' ||
-    userRole === 'COMPANY_STAFF'
-  ) {
+  const isCompanyStaff = userRole === 'COMPANY_STAFF';
+
+  if (isCompanyStaff) {
     if (isCancellation(toStatus)) return { allowed: true, requiresApproval: true, approverRoles };
     if (isForwardTransition(fromStatus, toStatus))
       return { allowed: true, requiresApproval: false, approverRoles: [] };

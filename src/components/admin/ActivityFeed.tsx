@@ -3,17 +3,18 @@
 import { useRouter } from 'next/navigation';
 
 interface ActivityItem {
-  type: 'company_created' | 'order_created' | 'user_created' | 'order_status_changed';
+  type: 'company_created' | 'tenant_created' | 'order_created' | 'user_created' | 'order_status_changed';
   timestamp: string;
   companyName: string;
   companySlug: string;
   entityId: string;
-  entityType: 'company' | 'order' | 'user';
+  entityType: 'company' | 'tenant' | 'order' | 'user';
   details: string;
 }
 
 const typeIcons: Record<ActivityItem['type'], string> = {
   company_created: '🏢',
+  tenant_created: '🏪',
   order_created: '📦',
   user_created: '👤',
   order_status_changed: '🔄',
@@ -21,6 +22,7 @@ const typeIcons: Record<ActivityItem['type'], string> = {
 
 const typeLabels: Record<ActivityItem['type'], string> = {
   company_created: 'Nova kompanija',
+  tenant_created: 'Novi tenant',
   order_created: 'Nova narudžbina',
   user_created: 'Novi korisnik',
   order_status_changed: 'Promena statusa',
@@ -36,6 +38,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
   const handleClick = (entityType: string, entityId: string, companySlug: string) => {
     switch (entityType) {
       case 'company':
+      case 'tenant':
         router.push(`/admin/companies/${entityId}`);
         break;
       case 'order':

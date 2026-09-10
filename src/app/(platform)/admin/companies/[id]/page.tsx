@@ -7,14 +7,17 @@ import { HorizontalBarChart, RoleDistribution, StatCard } from '@/components/adm
 import { SignOutButton } from '@/components/auth/SignOutButton';
 import { useNotifications } from '@/components/notifications/NotificationProvider';
 
-interface Company {
+interface CompanyDetail {
   id: string;
   name: string;
   slug: string;
   isActive: boolean;
+  type: 'company' | 'tenant';
+  isMainCompany?: boolean;
+  currency: string;
   contactEmail?: string;
   tagline?: string;
-  currency: string;
+  priceList?: { id: string; name: string; discountPercent: string } | null;
   counts: {
     users: number;
     orders: number;
@@ -36,13 +39,14 @@ interface User {
   name: string;
   phone?: string;
   platformRole: string;
-  companyRole: string;
+  companyRole?: string;
+  customerOrgRole?: string;
   isActive: boolean;
   createdAt: string;
 }
 
 interface CompanyStats {
-  company: Company;
+  company: CompanyDetail;
   ordersByStatus: Array<{ status: string; count: number }>;
   totalRevenue: string;
   revenueTrend: Array<{ month: string; revenue: number }>;
@@ -106,6 +110,7 @@ export default function CompanyDetailPage() {
     name: '',
     password: '',
     companyRole: 'COMPANY_ADMIN',
+    customerOrgRole: 'TENANT_MANAGER',
   });
 
   async function fetchData() {
@@ -159,7 +164,7 @@ export default function CompanyDetailPage() {
       }
 
       setSuccess(`Korisnik ${data.user.name} dodat uspešno`);
-      setFormData({ email: '', name: '', password: '', companyRole: 'COMPANY_ADMIN' });
+      setFormData({ email: '', name: '', password: '', companyRole: 'COMPANY_ADMIN', customerOrgRole: 'TENANT_MANAGER' });
       setShowAddUser(false);
       fetchData();
     } catch (err) {
@@ -247,12 +252,13 @@ export default function CompanyDetailPage() {
   }
 
   if (!stats) {
-    return <div className="p-8 text-center text-red-600">Kompanija nije pronađena</div>;
+    return <div className="p-8 text-center text-red-600">Entitet nije pronađen</div>;
   }
 
   const { company, ordersByStatus, totalRevenue, revenueTrend, topCustomers, catalogCompleteness } =
     stats;
   const revenueNum = Number(totalRevenue);
+  const isTenant = company.type === 'tenant';
 
   const orderStatusChartData = ordersByStatus.map((s) => ({
     label: statusLabels[s.status] || s.status,
@@ -271,9 +277,21 @@ export default function CompanyDetailPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <Link href="/admin" className="text-sm text-slate-500 hover:underline mb-2 inline-block">
-            ← Nazad na kompanije
+            ← Nazad na entitete
           </Link>
-          <h1 className="text-2xl font-bold">{company.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">{company.name}</h1>
+            {company.isMainCompany && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                GLAVNA KOMPANIJA
+              </span>
+            )}
+            {isTenant && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                TENANT
+              </span>
+            )}
+          </div>
           <p className="text-slate-500">
             Slug: {company.slug} • {company.counts.users} korisnika • {company.counts.orders}{' '}
             narudžbina
@@ -285,7 +303,7 @@ export default function CompanyDetailPage() {
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Korisnici" value={company.counts.users} />
         <StatCard label="Narudžbine" value={company.counts.orders} />
-        <StatCard label="Klijenti" value={company.counts.customerOrgs} />
+        <StatCard label={isTenant ? 'Članovi' : 'Klijenti'} value={company.counts.customerOrgs} />
         <StatCard label="Prihod" value={`${company.currency} ${revenueNum.toLocaleString()}`} />
       </div>
 
@@ -310,7 +328,7 @@ export default function CompanyDetailPage() {
 
       <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold">Top klijenti (po broju narudžbina)</h2>
+          <h2 className="mb-4 text-lg font-semibold">Top {isTenant ? 'korisnici' : 'klijenti'} (po broju narudžbina)</h2>
           {topCustomers.length > 0 ? (
             <ul className="space-y-2">
               {topCustomers.map((c) => (
@@ -324,55 +342,76 @@ export default function CompanyDetailPage() {
               ))}
             </ul>
           ) : (
-            <p className="text-slate-500 text-center py-8">Nema klijenata</p>
+            <p className="text-slate-500 text-center py-8">Nema {isTenant ? 'korisnika' : 'klijenata'}</p>
           )}
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold">Kompletnost kataloga</h2>
-          <div className="space-y-3">
-            {catalogChecks.map(({ key, label, icon }) => {
-              const has = catalogCompleteness[key as keyof typeof catalogCompleteness];
-              return (
-                <div
-                  key={key}
-                  className="flex items-center justify-between p-3 rounded-lg bg-slate-50"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{icon}</span>
-                    <span className="font-medium text-slate-700">{label}</span>
-                  </div>
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-                      has ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                    }`}
+        {company.type === 'company' && (
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-lg font-semibold">Kompletnost kataloga</h2>
+            <div className="space-y-3">
+              {catalogChecks.map(({ key, label, icon }) => {
+                const has = catalogCompleteness[key as keyof typeof catalogCompleteness];
+                return (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between p-3 rounded-lg bg-slate-50"
                   >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{icon}</span>
+                      <span className="font-medium text-slate-700">{label}</span>
+                    </div>
                     <span
-                      className={`h-1.5 w-1.5 rounded-full ${has ? 'bg-green-500' : 'bg-red-500'}`}
-                    />
-                    {has ? 'Postoji' : 'Nedostaje'}
-                  </span>
-                </div>
-              );
-            })}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                        has ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${has ? 'bg-green-500' : 'bg-red-500'}`}
+                      />
+                      {has ? 'Postoji' : 'Nedostaje'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
+        {isTenant && company.priceList && (
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-lg font-semibold">Cenovnik tenanta</h2>
+            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
+              <div>
+                <dt className="text-slate-500">Naziv</dt>
+                <dd className="font-medium">{company.priceList.name}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Popust</dt>
+                <dd className="font-medium">{company.priceList.discountPercent}%</dd>
+              </div>
+            </dl>
+          </div>
+        )}
       </div>
 
       <div className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold">Detalji kompanije</h2>
+        <h2 className="mb-4 text-lg font-semibold">{isTenant ? 'Detalji tenanta' : 'Detalji kompanije'}</h2>
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
           <div>
             <dt className="text-slate-500">Status</dt>
             <dd className="font-medium">{company.isActive ? 'Aktivan' : 'Neaktivan'}</dd>
           </div>
-          <div>
-            <dt className="text-slate-500">Kontakt email</dt>
-            <dd className="font-medium">{company.contactEmail || '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Slogan</dt>
-            <dd className="font-medium">{company.tagline || '—'}</dd>
-          </div>
+          {company.contactEmail && (
+            <div>
+              <dt className="text-slate-500">Kontakt email</dt>
+              <dd className="font-medium">{company.contactEmail}</dd>
+            </div>
+          )}
+          {company.tagline && (
+            <div>
+              <dt className="text-slate-500">Slogan</dt>
+              <dd className="font-medium">{company.tagline}</dd>
+            </div>
+          )}
           <div>
             <dt className="text-slate-500">Valuta</dt>
             <dd className="font-medium">{company.currency}</dd>
@@ -381,16 +420,18 @@ export default function CompanyDetailPage() {
             <dt className="text-slate-500">URL prodavnice</dt>
             <dd className="font-medium font-mono text-sm">{company.slug}.localhost:3000</dd>
           </div>
-          <div>
-            <dt className="text-slate-500">Katalog</dt>
-            <dd className="font-medium">
-              {company.counts.catalog.glassTypes} staklo, {company.counts.catalog.pvcProfiles}{' '}
-              profili, {company.counts.catalog.hardwareItems} oprema,{' '}
-              {company.counts.catalog.productTemplates} šablona,{' '}
-              {company.counts.catalog.processingOptions} obrada, {company.counts.catalog.priceLists}{' '}
-              cenovnika
-            </dd>
-          </div>
+          {!isTenant && (
+            <div>
+              <dt className="text-slate-500">Katalog</dt>
+              <dd className="font-medium">
+                {company.counts.catalog.glassTypes} staklo, {company.counts.catalog.pvcProfiles}{' '}
+                profili, {company.counts.catalog.hardwareItems} oprema,{' '}
+                {company.counts.catalog.productTemplates} šablona,{' '}
+                {company.counts.catalog.processingOptions} obrada, {company.counts.catalog.priceLists}{' '}
+                cenovnika
+              </dd>
+            </div>
+          )}
         </dl>
       </div>
 
@@ -443,15 +484,31 @@ export default function CompanyDetailPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Uloga</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  {isTenant ? 'Uloga tenanta' : 'Uloga kompanije'}
+                </label>
                 <select
-                  value={formData.companyRole}
-                  onChange={(e) => setFormData({ ...formData, companyRole: e.target.value })}
+                  value={isTenant ? formData.customerOrgRole : formData.companyRole}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      [isTenant ? 'customerOrgRole' : 'companyRole']: e.target.value,
+                    })
+                  }
                   className="input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
-                  <option value="COMPANY_ADMIN">Administrator</option>
-                  <option value="COMPANY_SALES">Prodaja</option>
-                  <option value="COMPANY_PRODUCTION">Proizvodnja</option>
+                  {isTenant ? (
+                    <>
+                      <option value="TENANT_ADMIN">Administrator tenanta (vidi finansije)</option>
+                      <option value="TENANT_MANAGER">Menadžer tenanta (samo narudžbine)</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="COMPANY_ADMIN">Administrator</option>
+                      <option value="COMPANY_SALES">Prodaja</option>
+                      <option value="COMPANY_PRODUCTION">Proizvodnja</option>
+                    </>
+                  )}
                 </select>
               </div>
             </div>
@@ -505,7 +562,7 @@ export default function CompanyDetailPage() {
                     <td className="p-4">{u.email}</td>
                     <td className="p-4">
                       <span className="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                        {u.companyRole}
+                        {u.companyRole || u.customerOrgRole || '—'}
                       </span>
                     </td>
                     <td className="p-4">

@@ -8,6 +8,7 @@ export const STATUS_ORDER: OrderStatus[] = [
   'READY',
   'DELIVERED',
   'CLOSED',
+  'CANCELLED',
 ];
 
 export const CANCELLABLE_STATUSES: OrderStatus[] = [
@@ -30,7 +31,7 @@ export type OrderStatus =
   | 'CANCELLED';
 
 export type CompanyRole =
-  'COMPANY_ADMIN' | 'COMPANY_SALES' | 'COMPANY_PRODUCTION' | 'PRODUCTION_WORKER';
+  'COMPANY_ADMIN' | 'COMPANY_SALES' | 'COMPANY_PRODUCTION';
 export type PlatformRole = 'SUPER_ADMIN' | 'COMPANY_ADMIN' | 'COMPANY_STAFF' | 'CUSTOMER';
 
 export type UserRole = CompanyRole | 'SUPER_ADMIN' | 'COMPANY_STAFF' | 'CUSTOMER';
@@ -93,18 +94,30 @@ export function getTransitionRule(
   const isMainCompany = isMainCompanyUser(userRole, platformRole);
   const approverRoles = getApproverRoles(userRole, platformRole);
 
-  // Production worker - only forward transitions, no cancellations
-  if (userRole === 'PRODUCTION_WORKER') {
-    if (isCancellation(toStatus)) {
-      return { allowed: false, requiresApproval: false, approverRoles: [] };
-    }
-    if (isForwardTransition(fromStatus, toStatus)) {
+  // Tenant customer users: no pipeline transitions.
+  // Only allowed: cancel own order while still NEW (direct, no approval).
+  if (platformRole === 'CUSTOMER') {
+    if (isCancellation(toStatus) && fromStatus === 'NEW') {
       return { allowed: true, requiresApproval: false, approverRoles: [] };
     }
     return { allowed: false, requiresApproval: false, approverRoles: [] };
   }
 
-  // Company production (manager) - can move forward, backward needs admin approval
+  // Company staff (main company) - can move forward freely, backward/cancellation needs admin approval
+  if (platformRole === 'COMPANY_STAFF') {
+    if (isCancellation(toStatus)) {
+      return { allowed: true, requiresApproval: true, approverRoles: ['COMPANY_ADMIN'] };
+    }
+    if (isForwardTransition(fromStatus, toStatus)) {
+      return { allowed: true, requiresApproval: false, approverRoles: [] };
+    }
+    if (isBackwardTransition(fromStatus, toStatus)) {
+      return { allowed: true, requiresApproval: true, approverRoles: ['COMPANY_ADMIN'] };
+    }
+    return { allowed: false, requiresApproval: false, approverRoles: [] };
+  }
+
+  // COMPANY_PRODUCTION (manager) - can move forward freely, backward/cancellation needs admin approval
   if (userRole === 'COMPANY_PRODUCTION') {
     if (isCancellation(toStatus)) {
       return { allowed: true, requiresApproval: true, approverRoles };
@@ -118,7 +131,7 @@ export function getTransitionRule(
     return { allowed: false, requiresApproval: false, approverRoles: [] };
   }
 
-  // Company sales - similar to production
+  // COMPANY_SALES - same as production
   if (userRole === 'COMPANY_SALES') {
     if (isCancellation(toStatus)) {
       return { allowed: true, requiresApproval: true, approverRoles };
@@ -128,20 +141,6 @@ export function getTransitionRule(
     }
     if (isBackwardTransition(fromStatus, toStatus)) {
       return { allowed: true, requiresApproval: true, approverRoles };
-    }
-    return { allowed: false, requiresApproval: false, approverRoles: [] };
-  }
-
-  // Company staff (generic main company) - treat as production
-  if (userRole === 'COMPANY_STAFF') {
-    if (isCancellation(toStatus)) {
-      return { allowed: true, requiresApproval: true, approverRoles: ['COMPANY_ADMIN'] };
-    }
-    if (isForwardTransition(fromStatus, toStatus)) {
-      return { allowed: true, requiresApproval: false, approverRoles: [] };
-    }
-    if (isBackwardTransition(fromStatus, toStatus)) {
-      return { allowed: true, requiresApproval: true, approverRoles: ['COMPANY_ADMIN'] };
     }
     return { allowed: false, requiresApproval: false, approverRoles: [] };
   }

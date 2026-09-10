@@ -13,25 +13,31 @@ const KINDS = [
 export default async function CatalogPage() {
   const session = await getSession();
   const user = session?.user as any;
-  const companyId = user?.companyId;
+  let companyId = user?.companyId as string | null;
 
-  if (!companyId) {
-    redirect('/dashboard');
+  // Superadmin has no companyId — resolve the single main company
+  if (!companyId && user?.platformRole === 'SUPER_ADMIN') {
+    const main = await prisma.company.findFirst({
+      where: { isMainCompany: true },
+      select: { id: true },
+    });
+    companyId = main?.id ?? null;
   }
+  if (!companyId) redirect('/dashboard');
 
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { isProducer: true },
+    select: { isMainCompany: true },
   });
 
-  if (!company?.isProducer) {
+  if (!company?.isMainCompany) {
     return (
       <div className="space-y-6">
         <div className="rounded-xl border border-slate-200 bg-amber-50 p-6">
-          <h2 className="text-lg font-semibold text-amber-800">Pristupljeno ograničeno</h2>
+          <h2 className="text-lg font-semibold text-amber-800">Pristup ograničen</h2>
           <p className="mt-2 text-amber-700">
-            Samo glavna proizvođačka kompanija može upravljati katalogom i cenama. Vaša organizacija
-            može samo da naručuje iz ponuđenog kataloga.
+            Samo glavna kompanija upravlja katalogom i cenama. Tenantske organizacije samo naručuju
+            iz ponuđenog kataloga.
           </p>
         </div>
       </div>

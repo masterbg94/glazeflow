@@ -6,6 +6,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   await requireRole(['SUPER_ADMIN']);
   const { id } = await params;
 
+  // Try to find as Company first
   const company = await prisma.company.findUnique({
     where: { id },
     select: {
@@ -14,6 +15,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       slug: true,
       isActive: true,
       currency: true,
+      isMainCompany: true,
       _count: {
         select: {
           users: true,
@@ -30,39 +32,97 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     },
   });
 
-  if (!company) {
-    return NextResponse.json({ error: 'Company not found' }, { status: 404 });
+  let entity: any = null;
+  let entityType: 'company' | 'tenant' = 'company';
+
+  if (company) {
+    entity = company;
+    entityType = 'company';
+  } else {
+    // Try to find as CustomerOrg (tenant)
+    const tenant = await prisma.customerOrg.findUnique({
+      where: { id },
+      include: {
+        priceList: { select: { id: true, name: true, discountPercent: true } },
+        _count: { select: { orders: true, members: true } },
+      },
+    });
+    if (tenant) {
+      entity = tenant;
+      entityType = 'tenant';
+    }
   }
 
-  const [ordersByStatus, revenueAgg, monthlyRevenue, topCustomers] = await Promise.all([
-    prisma.order.groupBy({
-      where: { companyId: id },
-      by: ['status'],
-      _count: true,
-    }),
-    prisma.order.aggregate({
-      where: { companyId: id },
-      _sum: { total: true },
-    }),
-    prisma.$queryRaw<Array<{ month: string; revenue: number }>>`
-      SELECT 
-        strftime('%Y-%m', "createdAt") as month,
-        SUM(CAST("total" AS REAL)) as revenue
-      FROM "Order"
-      WHERE "companyId" = ${id}
-        AND "createdAt" >= datetime('now', '-6 months')
-      GROUP BY strftime('%Y-%m', "createdAt")
-      ORDER BY month ASC
-    `,
-    prisma.customerOrg.findMany({
-      where: { companyId: id },
-      include: {
-        _count: { select: { orders: true } },
-      },
-      orderBy: { orders: { _count: 'desc' } },
-      take: 5,
-    }),
-  ]);
+  if (!entity) {
+    return NextResponse.json({ error: 'Entity not found' }, { status: 404 });
+  }
+
+  let ordersByStatus: any[] = [];
+  let revenueAgg: any = { _sum: { total: null } };
+  let monthlyRevenue: any[] = [];
+  let topCustomers: any[] = [];
+
+  if (entityType === 'company') {
+    [ordersByStatus, revenueAgg, monthlyRevenue, topCustomers] = await Promise.all([
+      prisma.order.groupBy({
+        where: { companyId: id },
+        by: ['status'],
+        _count: true,
+      }),
+      prisma.order.aggregate({
+        where: { companyId: id },
+        _sum: { total: true },
+      }),
+      prisma.$queryRaw<Array<{ month: string; revenue: number }>>`
+        SELECT 
+          strftime('%Y-%m', "createdAt") as month,
+          SUM(CAST("total" AS REAL)) as revenue
+        FROM "Order"
+        WHERE "companyId" = ${id}
+          AND "createdAt" >= datetime('now', '-6 months')
+        GROUP BY strftime('%Y-%m', "createdAt")
+        ORDER BY month ASC
+      `,
+      prisma.customerOrg.findMany({
+        where: { companyId: id },
+        include: {
+          _count: { select: { orders: true } },
+        },
+        orderBy: { orders: { _count: 'desc' } },
+        take: 5,
+      }),
+    ]);
+  } else {
+    // Tenant stats - orders where customerOrgId = id
+    [ordersByStatus, revenueAgg, monthlyRevenue, topCustomers] = await Promise.all([
+      prisma.order.groupBy({
+        where: { customerOrgId: id },
+        by: ['status'],
+        _count: true,
+      }),
+      prisma.order.aggregate({
+        where: { customerOrgId: id },
+        _sum: { total: true },
+      }),
+      prisma.$queryRaw<Array<{ month: string; revenue: number }>>`
+        SELECT 
+          strftime('%Y-%m', "createdAt") as month,
+          SUM(CAST("total" AS REAL)) as revenue
+        FROM "Order"
+        WHERE "customerOrgId" = ${id}
+          AND "createdAt" >= datetime('now', '-6 months')
+        GROUP BY strftime('%Y-%m', "createdAt")
+        ORDER BY month ASC
+      `,
+      prisma.order.groupBy({
+        where: { customerOrgId: id },
+        by: ['createdById'],
+        _count: true,
+        orderBy: { _count: { createdById: 'desc' } },
+        take: 5,
+      }),
+    ]);
+  }
 
   const statusOrder = [
     'NEW',
@@ -97,42 +157,89 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return { month, revenue: found ? Number(found.revenue) : 0 };
   });
 
-  return NextResponse.json({
-    company: {
-      id: company.id,
-      name: company.name,
-      slug: company.slug,
-      isActive: company.isActive,
-      currency: company.currency,
-      counts: {
-        users: company._count.users,
-        orders: company._count.orders,
-        customerOrgs: company._count.customerOrgs,
-        catalog: {
-          glassTypes: company._count.glassTypes,
-          pvcProfiles: company._count.pvcProfiles,
-          hardwareItems: company._count.hardwareItems,
-          productTemplates: company._count.productTemplates,
-          processingOptions: company._count.processingOptions,
-          priceLists: company._count.priceLists,
+  if (entityType === 'company') {
+    return NextResponse.json({
+      company: {
+        id: entity.id,
+        name: entity.name,
+        slug: entity.slug,
+        isActive: entity.isActive,
+        isMainCompany: entity.isMainCompany,
+        currency: entity.currency,
+        type: 'company' as const,
+        counts: {
+          users: entity._count.users,
+          orders: entity._count.orders,
+          customerOrgs: entity._count.customerOrgs,
+          catalog: {
+            glassTypes: entity._count.glassTypes,
+            pvcProfiles: entity._count.pvcProfiles,
+            hardwareItems: entity._count.hardwareItems,
+            productTemplates: entity._count.productTemplates,
+            processingOptions: entity._count.processingOptions,
+            priceLists: entity._count.priceLists,
+          },
         },
       },
-    },
-    ordersByStatus: statusData,
-    totalRevenue: revenueAgg._sum.total?.toString() || '0',
-    revenueTrend,
-    topCustomers: topCustomers.map((c) => ({
-      id: c.id,
-      name: c.name,
-      orderCount: c._count.orders,
-    })),
-    catalogCompleteness: {
-      hasGlass: company._count.glassTypes > 0,
-      hasProfiles: company._count.pvcProfiles > 0,
-      hasHardware: company._count.hardwareItems > 0,
-      hasTemplates: company._count.productTemplates > 0,
-      hasProcessing: company._count.processingOptions > 0,
-      hasPriceLists: company._count.priceLists > 0,
-    },
-  });
+      ordersByStatus: statusData,
+      totalRevenue: revenueAgg._sum.total?.toString() || '0',
+      revenueTrend,
+      topCustomers: topCustomers.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        orderCount: c._count.orders,
+      })),
+      catalogCompleteness: {
+        hasGlass: entity._count.glassTypes > 0,
+        hasProfiles: entity._count.pvcProfiles > 0,
+        hasHardware: entity._count.hardwareItems > 0,
+        hasTemplates: entity._count.productTemplates > 0,
+        hasProcessing: entity._count.processingOptions > 0,
+        hasPriceLists: entity._count.priceLists > 0,
+      },
+    });
+  } else {
+    return NextResponse.json({
+      company: {
+        id: entity.id,
+        name: entity.name,
+        slug: entity.slug,
+        isActive: true,
+        type: 'tenant' as const,
+        currency: 'RSD',
+        priceList: entity.priceList
+          ? { ...entity.priceList, discountPercent: entity.priceList.discountPercent.toString() }
+          : null,
+        counts: {
+          users: entity._count.members,
+          orders: entity._count.orders,
+          customerOrgs: 0,
+          catalog: {
+            glassTypes: 0,
+            pvcProfiles: 0,
+            hardwareItems: 0,
+            productTemplates: 0,
+            processingOptions: 0,
+            priceLists: 0,
+          },
+        },
+      },
+      ordersByStatus: statusData,
+      totalRevenue: revenueAgg._sum.total?.toString() || '0',
+      revenueTrend,
+      topCustomers: topCustomers.map((c: any) => ({
+        id: c.createdById,
+        name: `User ${c.createdById.slice(0, 8)}`,
+        orderCount: c._count.createdById,
+      })),
+      catalogCompleteness: {
+        hasGlass: false,
+        hasProfiles: false,
+        hasHardware: false,
+        hasTemplates: false,
+        hasProcessing: false,
+        hasPriceLists: false,
+      },
+    });
+  }
 }

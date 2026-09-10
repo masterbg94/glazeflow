@@ -11,7 +11,8 @@ export default async function OrderDetail({
 }) {
   const { id } = await params;
   const session = await getSession();
-  if (!session?.user) return <p>Molimo prijavite se.</p>;
+  const user = session?.user as any;
+  if (!user) return <p>Molimo prijavite se.</p>;
 
   const order = await prisma.order.findUnique({
     where: { id },
@@ -27,7 +28,8 @@ export default async function OrderDetail({
       statusHistory: true,
     },
   });
-  if (!order || order.createdById !== (session.user as any).id) notFound();
+  // Tenant org members see all org orders; ownership = customerOrgId
+  if (!order || order.customerOrgId !== user.customerOrgId) notFound();
 
   return (
     <div className="space-y-6">

@@ -20,7 +20,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       'COMPANY_STAFF',
       'COMPANY_PRODUCTION',
       'COMPANY_SALES',
-      'PRODUCTION_WORKER',
       'CUSTOMER',
     ].includes(userRole)
   ) {
@@ -29,12 +28,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { status: newStatus, note, reason } = await req.json();
   const order = await prisma.order.findUnique({ where: { id }, include: { customerOrg: true } });
-  if (!order || order.companyId !== user.companyId)
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // CustomerOrg users can only access their own orders
-  if (user.customerOrgId && order.customerOrgId !== user.customerOrgId) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  // Tenant users: only own orders, any check against their org
+  if (user.customerOrgId) {
+    if (order.customerOrgId !== user.customerOrgId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  } else if (order.companyId !== user.companyId && user.platformRole !== 'SUPER_ADMIN') {
+    // Main company staff must belong to the order's company; superadmin bypasses
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
   const rule = getTransitionRule(
@@ -61,23 +64,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       },
     });
 
-    // Notify approvers
+    // Notify approvers — always main company (order.companyId), never tenant.
     let approvers;
     if (platformRole === 'CUSTOMER') {
-      // For CustomerOrg users, approvers are platform admins
       approvers = await prisma.user.findMany({
         where: {
-          companyId: user.companyId,
+          companyId: order.companyId,
           platformRole: { in: ['SUPER_ADMIN', 'COMPANY_ADMIN'] },
         },
       });
     } else {
       approvers = await prisma.user.findMany({
         where: {
-          companyId: user.companyId,
+          companyId: order.companyId,
           companyRole: { in: rule.approverRoles },
         },
       });
+      if (approvers.length === 0) {
+        approvers = await prisma.user.findMany({
+          where: { companyId: order.companyId, platformRole: 'COMPANY_ADMIN' },
+        });
+      }
     }
 
     for (const approver of approvers) {
@@ -113,7 +120,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       companyId: order.companyId,
       OR: [
         { platformRole: { in: ['COMPANY_ADMIN', 'COMPANY_STAFF'] } },
-        { companyRole: { in: ['COMPANY_PRODUCTION', 'COMPANY_SALES', 'PRODUCTION_WORKER'] } },
+        { companyRole: { in: ['COMPANY_PRODUCTION', 'COMPANY_SALES'] } },
       ],
     },
   });

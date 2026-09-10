@@ -3,12 +3,10 @@
 import { useState } from 'react';
 
 /**
- * Form for super-admins to create a new tenant (Company).
- *
- * A tenant is just a Company row with a unique slug; the slug doubles as the
- * subdomain that serves its storefront (e.g. acme → acme.localhost:3000).
- * Creating one here is enough to make the storefront live — no separate
- * infrastructure per tenant.
+ * Super-admin form: creates a TENANT (CustomerOrg under the main company),
+ * not a Company row. The slug doubles as the tenant subdomain
+ * (e.g. tenant1 → tenant1.localhost:3000). A per-tenant price list with
+ * the chosen discount/markup percent is created automatically.
  */
 interface CreateCompanyFormProps {
   onSuccess?: () => void;
@@ -17,11 +15,9 @@ interface CreateCompanyFormProps {
 export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
-  const [email, setEmail] = useState('');
-  const [tagline, setTagline] = useState('');
-  const [address, setAddress] = useState('');
-  const [taxRate, setTaxRate] = useState<number>(20);
-  const [markup, setMarkup] = useState<number>(25);
+  const [taxId, setTaxId] = useState('');
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [discount, setDiscount] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -32,18 +28,15 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
     setError(null);
     setSuccess(null);
     try {
-      const res = await fetch('/api/companies', {
+      const res = await fetch('/api/tenants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
           slug,
-          contactEmail: email,
-          tagline,
-          address,
-          currency: 'RSD',
-          taxRatePercent: taxRate,
-          defaultMarkupPercent: markup,
+          taxId: taxId || undefined,
+          shippingAddress: shippingAddress || undefined,
+          discountPercent: discount,
         }),
       });
       if (!res.ok) {
@@ -52,14 +45,12 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
         return;
       }
       const data = await res.json();
-      setSuccess(`Kreirano "${data.company.name}" (slug: ${data.company.slug})`);
+      setSuccess(`Kreiran tenant "${data.tenant.name}" (slug: ${data.tenant.slug})`);
       setName('');
       setSlug('');
-      setEmail('');
-      setTagline('');
-      setAddress('');
-      setTaxRate(20);
-      setMarkup(25);
+      setTaxId('');
+      setShippingAddress('');
+      setDiscount(0);
       onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Nepoznata greška');
@@ -72,7 +63,7 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Naziv kompanije *</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Naziv firme *</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -96,65 +87,37 @@ export function CreateCompanyForm({ onSuccess }: CreateCompanyFormProps) {
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Kontakt email</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">PIB</label>
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={taxId}
+            onChange={(e) => setTaxId(e.target.value)}
             className="input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Slogan</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Popust tenanta (%)
+          </label>
           <input
-            value={tagline}
-            onChange={(e) => setTagline(e.target.value)}
+            type="number"
+            min={0}
+            max={100}
+            value={discount}
+            onChange={(e) => setDiscount(Number(e.target.value) || 0)}
             className="input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium text-slate-700">
-          Adresa kompanije (podrazumevana adresa isporuke)
+          Adresa isporuke (podrazumevana)
         </label>
         <input
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder="npr. Bulevar kralja Aleksandra 10, Beograd"
+          value={shippingAddress}
+          onChange={(e) => setShippingAddress(e.target.value)}
+          placeholder="npr. Industrijska zona 5, Beograd"
           className="input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
-      </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Valuta</label>
-          <input
-            value="RSD — Srpski dinar"
-            disabled
-            className="input w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Porez (%)</label>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={taxRate}
-            onChange={(e) => setTaxRate(Number(e.target.value) || 0)}
-            className="input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Markup (%)</label>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={markup}
-            onChange={(e) => setMarkup(Number(e.target.value) || 0)}
-            className="input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
       </div>
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>}
       {success && (
