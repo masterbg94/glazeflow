@@ -87,25 +87,26 @@ matches the task.
 
 ```bash
 npm run format:check
+npm run typecheck
+npm run test
 npm run build
 ```
 
-`npm run lint` is currently broken — `next lint` was removed in Next.js 16 and
-the script still calls it. Do not rely on it and do not report it as a pass.
+`npm run lint` runs `tsc --noEmit` — `next lint` was removed in Next.js 16 and
+the script was rewritten rather than left broken.
 
 For schema changes, also run `npx prisma generate` and `npm run db:push`. Never
 use production data for local experiments.
 
-There is no test suite. Verification is the build plus a manual check of the
-changed path.
+There is a Vitest suite covering the three pure modules — `pricing-engine`,
+`status-transitions`, and `validation`. Run it with `npm run test`. A change to
+one of those three must come with a test.
 
 ## Known implementation risks
 
 Read `knowledge-base/auth-gaps.md` before changing authorization, tenancy, order
-creation, or pricing. It lists verified holes with file and line references —
-unauthenticated pricing, an order listing that leaks when a session lacks an
-org id, catalog lookups that are not scoped by company, role conflation, and
-cross-tenant approval.
+creation, or pricing. It records the verified holes that were found and fixed,
+with file and line references for the check that now guards each one.
 
 Two features described in the business docs do **not** exist in code: per-tenant
 catalog assignment, and any `customerOrgRole` restriction beyond the finance

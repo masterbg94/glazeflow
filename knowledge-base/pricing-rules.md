@@ -48,21 +48,42 @@ type's base thickness is surcharged. `baseThicknessMm` comes from `GlassType`;
 | `RAW_PROFILE`     | —                  | lengthM × price/m   | summed   | summed     |
 | `HARDWARE`        | —                  | —                   | summed   | summed     |
 
-`HARDWARE` has no dedicated branch — it falls through and prices at zero. The
-wizard never selects it (`src/components/order-wizard/OrderWizard.tsx:268`
-offers only the other four), so the bug is latent.
+`HARDWARE` has no dedicated geometry branch, but it is **not** priced at zero.
+`src/lib/pricing-engine.ts:83` computes `hardwareCost` for every kind, so a
+`HARDWARE` item prices correctly from its hardware line.
+
+The real gap is different: the wizard never offers `HARDWARE` as a product
+kind (`src/components/order-wizard/OrderWizard.tsx:268` offers only the other
+four), so hardware can only be bought attached to a window, door, or glass
+line. Standalone hardware ordering is impossible.
+
+An earlier version of this file claimed `HARDWARE` "falls through and prices
+at zero". That was wrong; corrected 2026-10-21. See
+`docs/business-logic-review.md` § 2.11.
 
 ### Line and item totals
 
 ```ts
 baseUnit = (profileCost + glassCost + hardwareCost + processingCost) * complexityMultiplier;
 unitPrice = round(baseUnit, 2);
-lineTotal = round(unitPrice * quantity, 2);
-// :86-89
+lineTotal = round(baseUnit * quantity, 2); // from the UNROUNDED base
 ```
 
 `complexityMultiplier` comes from `ProductTemplate` (default 1.0). It applies to
 the whole line, including hardware and processing.
+
+The line total is derived from the **unrounded** base. Rounding the unit
+first and then multiplying drifted by up to `quantity × 0.005` — a 5 RSD
+difference on a 1000-piece order.
+
+`profileCost` carries the colour surcharge:
+`perimeter × profileSellPricePerMeter × colorSurchargeFactor`, where the
+factor comes from `PvcProfile.colorSurchargeFactor` (a JSON map from colour
+name to factor, e.g. `1.15`). A colour with no entry is charged at 1.0.
+
+`ProductTemplate.openingCount` is **not** priced. It is carried on the model
+and shipped to the client, but no price path reads it. The seeded
+`complexityMultiplier` values (0.9 / 1.15 / 1.4) do all the differentiation.
 
 ### Order totals
 
@@ -85,8 +106,8 @@ from the main company's `Company.taxRatePercent` (seed: 20).
 
 Applied per catalog item. Same logic in two places — keep them in sync:
 
-- `src/lib/tenant.ts:63-76` (read path, storefront)
-- `src/app/api/orders/route.ts:64-80` (write path, order creation)
+- `src/lib/tenant.ts` (read path, storefront)
+- `src/app/api/orders/route.ts` (write path, order creation)
 
 ```
 1. CustomerPriceOverride.overrideSellPrice   (absolute price for this tenant)
@@ -97,20 +118,44 @@ Applied per catalog item. Same logic in two places — keep them in sync:
 Then separately, the tenant's `PriceList.discountPercent` applies to the order
 subtotal.
 
+**The two mechanisms compound.** A tenant with a 15% price-list discount and a
+10% per-item override gets both: the item price is 10% below base, and the
+subtotal is then 15% below that. This is consistent with `docs/Business Logic.md`
+§3.3, which lists them as independent, but it is the most likely source of a
+price dispute.
+
+Overrides are managed through `/api/price-overrides` and price lists through
+`/api/price-lists`.
+
 `costPrice` and `costPricePerSqm` are never exposed to tenants.
 `getTenantCatalog` omits them, and the order-creation path never selects them.
 Never add a cost field to a tenant-facing serializer.
 
-## The live quote differs from the final total
+## The live quote matches the final total
 
-The wizard's `PriceSummary` shows unit price and line total only. It does **not**
-show the tenant discount or the tax, and the copy says the final total appears
-at checkout (`src/components/order-wizard/PriceSummary.tsx:39-43`).
+`src/components/order-wizard/PriceSummary.tsx` shows the line total, the tenant
+discount, the tax and the grand total. The discount percent and the tax rate
+are passed in from the server, so the number the tenant sees mid-wizard is the
+number the server computes at submit time.
 
-The server total therefore differs from what the tenant saw. This is by design
-in the current UI, but it is a known gap: the tenant is surprised at submit time.
-`docs/Business Logic.md` §4 Step 4 expects the live quote to include discount and
-tax.
+The order of operations is the same on both sides: **subtotal → discount →
+tax → total**, with the tax applied to the discounted amount.
+
+## Input validation happens before pricing
+
+`src/lib/validation.ts` validates the whole `POST /api/orders` body before any
+price is calculated. The pricing engine is pure and trusts its caller, so
+every numeric input that reaches it must be checked first.
+
+Rejected with 400: a missing or non-numeric `quantity`, a quantity below 1 or
+above 10000, dimensions below 1 mm or above 20000 mm, a negative raw-profile
+length, a pane count that contradicts `glazingLayers`, a `FINISHED_WINDOW` or
+`FINISHED_DOOR` without a `profileId`, an unknown product kind, and a pane
+thickness the glass type does not offer.
+
+The `ProductTemplate` min/max dimensions and the `applicableKinds` of hardware
+and processing options are checked on the server as well — the wizard enforces
+them for UX, but the server is the boundary that matters.
 
 ## Where prices live in the schema
 
@@ -132,14 +177,18 @@ anything.
 
 ## Known pricing gaps
 
-| Gap                                               | Location                                                                                       | Note                                                           |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `HARDWARE` kind prices at zero                    | `src/lib/pricing-engine.ts:63-89`                                                              | No branch; wizard never selects it                             |
-| Template min/max dimensions unenforced            | `src/lib/pricing-engine.ts` has no check; `src/lib/tenant.ts:125-128` ships them to the client | The client could enforce, but does not                         |
-| Live quote omits tax and discount                 | `src/components/order-wizard/PriceSummary.tsx:39`                                              | Server total is correct; tenant sees a lower number mid-wizard |
-| `defaultMarkupPercent` and `minOrderValue` unused | `prisma/schema.prisma`                                                                         | Dead fields on `Company`                                       |
-| `ProductTemplate` has no price of its own         | schema                                                                                         | Only a complexity multiplier                                   |
-| Decimal handling at the server→client boundary    | see below                                                                                      | Must be stringified                                            |
+| Gap                                               | Location                                                                                       | Note                                                              |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| No standalone hardware ordering                   | `src/components/order-wizard/OrderWizard.tsx:268`                                              | `HARDWARE` prices correctly, but the wizard never offers the kind |
+| Template min/max dimensions unenforced            | `src/lib/pricing-engine.ts` has no check; `src/lib/tenant.ts:125-128` ships them to the client | Neither side enforces them; the server should                     |
+| No validation of quantity or dimensions           | `src/app/api/orders/route.ts:85-142`                                                           | Negative quantity produces a negative-value order                 |
+| A finished unit can be ordered with no frame      | `src/app/api/orders/route.ts:87-92` + `src/lib/pricing-engine.ts:73`                           | Failed profile lookup silently drops the frame cost               |
+| Live quote omits tax and discount                 | `src/components/order-wizard/PriceSummary.tsx:39`                                              | Server total is correct; tenant sees a lower number mid-wizard    |
+| `defaultMarkupPercent` and `minOrderValue` unused | `prisma/schema.prisma`                                                                         | Dead fields on `Company`                                          |
+| `colorSurchargeFactor` and `openingCount` unused  | `src/lib/pricing-engine.ts`                                                                    | Schema fields no price path reads                                 |
+| `ProcessingOption.unit` ignored                   | `src/lib/pricing-engine.ts:84`                                                                 | Processing is summed flat                                         |
+| `ProductTemplate` has no price of its own         | schema                                                                                         | Only a complexity multiplier                                      |
+| Decimal handling at the server→client boundary    | see below                                                                                      | Must be stringified                                               |
 
 ## The Decimal rule
 

@@ -142,19 +142,25 @@ thresholds for tenants.
 and map them with `toHttpError`. Everywhere else the throw is uncaught and
 becomes a 500 — see `auth-gaps.md` #7.
 
-## The role-confusion trap
+## The role-confusion trap — FIXED
 
-Two API routes and one page compute:
+The code used to compute:
 
 ```ts
 const userRole = user.companyRole || user.platformRole;
 ```
 
-- `src/app/api/orders/[id]/status/route.ts:13`
-- `src/app/(company)/dashboard/orders/page.tsx:32`
-- `src/app/api/orders/transitions/[id]/route.ts:13-18` uses a related check
+and `src/lib/status-transitions.ts` treated `userRole === 'COMPANY_ADMIN'` as
+omnipotent. Because `companyRole` was checked first, a user with
+`platformRole: COMPANY_STAFF` and `companyRole: COMPANY_ADMIN` got admin powers
+and skipped the approval chain.
 
-`src/lib/status-transitions.ts:89-91` then treats `userRole === 'COMPANY_ADMIN'`
-as omnipotent. Because `companyRole` is checked first, a user with
-`platformRole: COMPANY_STAFF` and `companyRole: COMPANY_ADMIN` gets admin
-powers and skips the approval chain. See `auth-gaps.md` #4 and #5.
+Now `effectiveUserRole(platformRole, companyRole)` in
+`src/lib/status-transitions.ts` resolves the role, and the transition rule
+checks `userRole === 'COMPANY_ADMIN' && platformRole === 'COMPANY_ADMIN'`. The
+two dimensions are never merged into one string. The Kanban client imports the
+same functions, so the UI and the server agree.
+
+`src/lib/rbac.ts` also gained `requireCompanyRole` and
+`requireCustomerOrgRole` for gates that need a job role rather than an access
+level.

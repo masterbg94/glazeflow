@@ -41,6 +41,7 @@ glazeflow-mvp/
 | `roles.md`                    | Uloge po kodu: tri dimenzije, matrica dozvola, gde se ko loguje, ključni propusti | aktuelan   |
 | `how-app-works-with-roles.md` | Pregled kako radi aplikacija, na srpskom                                          | aktuelan   |
 | `improvements.md`             | Prioritizovani tehnički rizici i plan; sadašnje stanje provereno                  | aktuelan   |
+| `business-logic-review.md`    | Pregled biznis logike: pronađeni propusti, uska grla, plan popravke u 7 faza      | aktuelan   |
 | `postgres-migration.md`       | Prelazak sa SQLite na PostgreSQL — šta se menja i šta ne                          | aktuelan   |
 | `ai-structure-plan.md`        | Kako je AI struktura organizovana — skills, instrukcije, knowledge base, i zašto  | istorijski |
 | `Business Logic.md`           | Originalna produktna vizija — namera, **ne** implementacija                       | arhiva     |

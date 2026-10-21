@@ -4,221 +4,210 @@ Verified holes in the current authorization code. Every entry was checked agains
 the file at the commit this was written on. These are facts about the code, not
 criticism of the design.
 
-When a change touches any of these areas, re-verify — a fix may have landed
-since this file was written.
+> **Status 2026-10-21: all sixteen gaps below are fixed.** Each entry records
+> what the hole was and what closed it. The list is kept as a record of what
+> the checks were and where they live, so a future change does not undo them.
+> When a change touches any of these areas, re-verify.
 
 ## Why the middleware does not save you
 
-`src/middleware.ts:28` returns `NextResponse.next()` for every path starting
-with `/api`. The middleware never guards API routes. It only:
+`src/middleware.ts` returns `NextResponse.next()` for every path starting with
+`/api`. The middleware never guards API routes. It only:
 
 - redirects unauthenticated users away from `/dashboard` and `/admin`
 - restricts `/admin` to `platformRole === 'SUPER_ADMIN'`
 - restricts `/dashboard` to `SUPER_ADMIN`, `COMPANY_ADMIN`, `COMPANY_STAFF`
 - rewrites tenant subdomains to the storefront and blocks `/dashboard` and
   `/admin` there
+- answers 404 for a host that is neither the root host nor a tenant subdomain
 
 Every API route is therefore its own only auth boundary. A route with a weak
 check is directly exploitable.
 
 ## The gaps
 
-### 1. Unauthenticated pricing endpoint
+### 1. Unauthenticated pricing endpoint — FIXED
 
-**`src/app/api/pricing/quote/route.ts:4-13`**
+**`src/app/api/pricing/quote/route.ts`**
 
-No `getSession()`, no role check. Any caller can POST a body and get pricing
-computed. It runs `calcItemPricing(body.item)` on attacker-supplied values.
+Was: no `getSession()`, no role check. Any caller could POST a body and get
+pricing computed on attacker-supplied values.
 
-Impact: information disclosure of the pricing formula's behaviour, and free
-compute. It does not persist anything and does not read the database, so it
-cannot leak catalog data — but it is a public endpoint that should be
-authenticated or removed.
+Now: the route requires a session and returns 401 without one. The body is
+also validated for shape.
 
-### 2. `GET /api/orders` returns every order when the session lacks an org id
+### 2. `GET /api/orders` returned every order without an org id — FIXED
 
-**`src/app/api/orders/route.ts:11-16`**
+**`src/app/api/orders/route.ts`**
 
-```ts
-const where =
-  user.platformRole === 'CUSTOMER'
-    ? { customerOrgId: user.customerOrgId }
-    : ...
-const orders = await prisma.order.findMany({ where, ... });
-```
+Was: `where` was built from a possibly-undefined `customerOrgId`; Prisma drops
+an undefined key, the filter became empty, and every order was returned.
 
-A `CUSTOMER` whose `customerOrgId` is null yields `{ customerOrgId: undefined }`.
-Prisma drops an `undefined` key, so the filter becomes empty and `findMany`
-returns **all orders in the database**, with items and the customer org
-included. The same applies to a company user with no `companyId`.
+Now: a `CUSTOMER` without a `customerOrgId` and a company user without a
+`companyId` both get 401 instead of an unfiltered list.
 
-The POST path guards this correctly at `src/app/api/orders/route.ts:33-38`. The
-GET path does not.
+### 3. Order items could reference another company's catalog — FIXED
 
-### 3. Order items can reference another company's catalog
+**`src/app/api/orders/route.ts`**
 
-**`src/app/api/orders/route.ts:88-126`**
+Was: five `findUnique` calls by bare id, with no `companyId` and no `isActive`
+filter. A deactivated product was still orderable and its price was
+snapshotted into the order.
 
-Every catalog lookup in the order-creation path is by bare id:
+Now: all catalog rows are loaded with one `findMany` per model, filtered by
+`companyId` **and** `isActive`. A row that does not resolve returns 400.
 
-```ts
-await prisma.pvcProfile.findUnique({ where: { id: item.profileId } });
-await prisma.glassType.findUnique({ where: { id: pane.glassTypeId } });
-await prisma.hardwareItem.findUnique({ where: { id: h.hardwareId } });
-await prisma.processingOption.findUnique({ where: { id: pid } });
-await prisma.productTemplate.findUnique({ where: { id: item.templateId } });
-```
+### 4. `companyRole` and `platformRole` were conflated — FIXED
 
-No `companyId` filter, no `isActive` filter. A tenant can order a product that
-belongs to a different company, and can order a product the main company has
-deactivated. The prices used come from that other row, and they are snapshotted
-into the order.
+**`src/app/api/orders/[id]/status/route.ts`**
 
-### 4. `companyRole` and `platformRole` are conflated
+Was: `const userRole = user.companyRole || user.platformRole` merged two
+different questions into one string, so a `COMPANY_STAFF` user holding
+`companyRole: COMPANY_ADMIN` became omnipotent.
 
-**`src/app/api/orders/[id]/status/route.ts:13`**
-**`src/app/(company)/dashboard/orders/page.tsx:32`**
+Now: `effectiveUserRole(platformRole, companyRole)` in
+`src/lib/status-transitions.ts` keeps the dimensions apart, and the transition
+rule checks `userRole === 'COMPANY_ADMIN' && platformRole === 'COMPANY_ADMIN'`.
 
-```ts
-const userRole = user.companyRole || user.platformRole;
-```
+### 5. Cross-tenant transition approval — FIXED
 
-`src/lib/status-transitions.ts:89-91` then treats `userRole === 'COMPANY_ADMIN'`
-as omnipotent. Because `companyRole` is checked first, a user with
-`platformRole: COMPANY_STAFF` and `companyRole: COMPANY_ADMIN` is treated as a
-full administrator and skips the approval chain for backward moves and
-cancellations.
+**`src/app/api/orders/transitions/[id]/route.ts`**
 
-The two enums answer different questions — see `roles-explanation.md`. Merging
-them into one string is the defect.
+Was: the tenant check compared `order.companyId` with `user.companyId`, which
+is the main company for every tenant user, so it passed for any tenant's order.
 
-### 5. Cross-tenant transition approval
+Now: the approver must be main-company staff
+(`platformRole` in `SUPER_ADMIN` / `COMPANY_ADMIN` with a matching
+`companyRole`), and a user with a `customerOrgId` is rejected outright.
 
-**`src/app/api/orders/transitions/[id]/route.ts:13-18` and `:34`**
+### 6. `assertSameCompany` had zero call sites — PARTIALLY ADDRESSED
 
-The gate:
+**`src/lib/rbac.ts`**
 
-```ts
-if (
-  !['SUPER_ADMIN', 'COMPANY_ADMIN'].includes(user.platformRole) &&
-  user.companyRole !== 'COMPANY_ADMIN'
-)
-  return 403;
-```
+`assertSameCompany` still has no call site. It is documented here so it is not
+mistaken for working protection — the tenant checks in the order routes compare
+`customerOrgId` directly instead, which is the correct field for a tenant.
 
-The tenant check:
+`assertSameTenant` was added alongside it for the same purpose.
 
-```ts
-if (transition.order.companyId !== user.companyId && user.platformRole !== 'SUPER_ADMIN') {
-  return 403;
-}
-```
+### 7. Uncaught `requireRole` throws returned 500 — FIXED
 
-A tenant user's `companyId` is the **main** company, and `order.companyId` is
-also the main company. So the check passes for any tenant's order. The gate
-lets through a tenant user holding `companyRole: 'COMPANY_ADMIN'` — which
-`PATCH /api/companies/[id]/users/[userId]` allows to be set
-(`src/app/api/companies/[id]/users/[userId]/route.ts:63`).
+**`src/lib/rbac.ts`**
 
-Result: a tenant member can approve status transitions on other tenants'
-orders.
+Was: 10 of 13 `requireRole` call sites let the throw escape, so a rejected
+role became a 500 with a stack trace.
 
-The correct comparison for a tenant is `order.customerOrgId === user.customerOrgId`.
+Now: every call site wraps `requireRole` in `try/catch` and returns
+`toHttpError(err)`, which maps `UnauthorizedError` to 401 and `ForbiddenError`
+to 403.
 
-### 6. `assertSameCompany` has zero call sites
+### 8. `platformRole` was client-supplied on user creation — FIXED
 
-**`src/lib/rbac.ts:16`**
+**`src/app/api/companies/[id]/users/route.ts`**
 
-The helper exists and is documented in the instructions, but nothing calls it.
-Tenant isolation is done by hand in each handler, which is why gaps 2, 3, and 5
-exist.
+Was: `platformRole` came from the request body and was written straight to the
+`User` row.
 
-### 7. Uncaught `requireRole` throws return 500, not 401/403
+Now: the platform role is derived from the context — `COMPANY_ADMIN` for a
+company user, `CUSTOMER` for a tenant user. The body cannot set it.
 
-There are 13 `requireRole` call sites. Only 3 wrap it:
+### 9. `GET /api/tenants` omitted the main-company check — FIXED
 
-- `src/app/api/tenants/route.ts:11,49`
-- `src/app/api/register/route.ts:11`
+**`src/app/api/tenants/route.ts`**
 
-The other 10 let `UnauthorizedError` / `ForbiddenError` escape the handler.
-Next.js turns that into a 500 with a stack trace, and the client gets an
-internal error instead of a 401 or a 403.
+Now: GET asserts `isMainCompany`, exactly like POST.
 
-Affected: `api/catalog` (×2), `api/companies` (×1), `api/companies/[id]` (×1),
-`api/companies/[id]/users` (×2), `api/companies/[id]/users/[userId]` (×2),
-`api/admin/stats` (×1), `api/admin/companies/[id]/stats` (×1).
+### 10. Session cookie was not `Secure` in production — FIXED
 
-### 8. `platformRole` is client-supplied on user creation
+**`src/lib/auth.ts`**
 
-**`src/app/api/companies/[id]/users/route.ts:59`**
+Now: `secure: process.env.NODE_ENV === 'production'`.
 
-```ts
-const {
-  email,
-  name,
-  password,
-  companyRole,
-  customerOrgRole,
-  platformRole = 'COMPANY_ADMIN',
-} = body;
-```
-
-The body value is written straight to the `User` row
-(`src/app/api/companies/[id]/users/route.ts:86`). A `SUPER_ADMIN` can mint
-another `SUPER_ADMIN` — or a `CUSTOMER` with a `companyRole`, which is the
-setup gap 5 needs.
-
-The route is SUPER_ADMIN-gated, so this is an admin-driven escalation surface
-rather than an open one, but the field should be derived from the context
-(main company vs tenant), never from the request.
-
-### 9. `GET /api/tenants` omits the main-company check
-
-**`src/app/api/tenants/route.ts:11`**
-
-POST asserts `company.isMainCompany` at line 82 and returns 403 for a
-non-main company. GET has no such assertion, so a `COMPANY_ADMIN` of a
-non-main company receives that company's tenant list. Low impact today, since
-only the main company has tenants, but the asymmetry is a bug.
-
-### 10. The session cookie is not `Secure` in production
-
-**`src/lib/auth.ts:27`**
-
-```ts
-secure: false,
-```
-
-Hardcoded. The cookie also sets a `Domain` attribute outside localhost
-(`src/lib/auth.ts:12-15`) so the session is shared across tenant subdomains in
-production — correct, but it means the cookie is sent over plaintext HTTP as
-well as HTTPS.
-
-### 11. `NotificationRule` is never enforced
+### 11. `NotificationRule` is never enforced — STILL OPEN
 
 **`prisma/schema.prisma:600-612`**
 
-`notify()` in `src/lib/notifications.ts` sends based on the `email` boolean in
-its argument. The `NotificationRule` table — event, target role, channel,
-frequency, active flag — has no code reading it. Notification routing is
-hardcoded per call site.
+`notify()` sends based on the `email` boolean in its argument. The
+`NotificationRule` table — event, target role, channel, frequency, active flag
+— has no code reading it. Notification routing is hardcoded per call site.
 
 This is a functional gap rather than a security hole, listed here because the
 model implies a behaviour that does not exist.
 
+### 12. `internalNotes` leaked to tenants over SSE — FIXED
+
+**`src/app/api/orders/[id]/status/route.ts`** and
+**`src/app/api/orders/transitions/[id]/route.ts`**
+
+Was: the full `prisma.order.update` result was published as the `order:update`
+payload, so the supplier-only `Order.internalNotes` reached every recipient
+including the tenant's own members.
+
+Now: the payload is an explicit pick of five fields, and
+`OrderUpdatePayload` in `src/lib/events.ts` declares exactly those.
+
+### 13. A tenant user could be granted a main-company role — FIXED
+
+**`src/app/api/companies/[id]/users/[userId]/route.ts`**
+
+Was: `entityType` was destructured and never used, so `companyRole` and
+`customerOrgRole` were both settable on any user. A tenant member could be
+given `companyRole: 'COMPANY_ADMIN'` — the exact value the transition-approval
+gate checked.
+
+Now: the role field must match the entity that owns the user. A `companyRole`
+on a tenant user returns 400.
+
+### 14. Prototype lookup in the catalog route — FIXED
+
+**`src/app/api/catalog/route.ts`**
+
+Was: `typeMap[type]` on a plain object literal resolved `type=constructor` to
+`Object.prototype.constructor`, and the following `model.findMany` threw a
+`TypeError` → 500.
+
+Now: `typeMap` is built with `Object.create(null)`.
+
+### 15. HTML injection in outbound email — FIXED
+
+**`src/lib/email.ts`**
+
+Was: `subject` and `body` were interpolated into an HTML template without
+escaping. A tenant's message body reached the HTML email that main-company
+staff read.
+
+Now: `escapeHtml` is applied to both.
+
+### 16. A deactivated user kept a working session — FIXED
+
+**`src/lib/auth.ts`**
+
+Was: `strategy: 'jwt'` with no re-read of the user, so `isActive: false` had
+no effect until the token expired.
+
+Now: the `jwt` callback re-reads the user on every request and throws when
+the account is inactive, which makes NextAuth drop the session cookie.
+
 ## Related non-security gaps worth knowing
 
-| Gap                                                                        | Location                                                    |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `OrderItem.status` never leaves `PENDING`                                  | no write path sets `ACCEPTED` / `REJECTED`                  |
-| `ProductTemplate` dimension bounds unenforced                              | `src/lib/tenant.ts:125-128` ships them; nothing checks them |
-| `Company.defaultMarkupPercent` and `minOrderValue` unused                  | schema only                                                 |
-| `savedConfigurations` model is unused by the UI                            | no page or route references it                              |
-| `NotificationFrequency.DAILY_DIGEST` never applied                         | no digest job exists                                        |
-| `Order.assigneeId` never set                                               | no code assigns an order to a staff member                  |
-| `OrderAttachment` upload has no route                                      | no file-upload endpoint exists                              |
-| `staff` filter in `api/orders/route.ts:212` ignores `customerOrgId`        | main-company staff are notified; tenant staff are not       |
-| `savedConfigurations` and `assigneeId` appear in the schema but have no UI | confirmed by grep across `src/`                             |
+| Gap                                                                 | Location                                                                         |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `OrderItem.status` never leaves `PENDING`                           | fixed — `PATCH /api/orders/[id]/items/[itemId]` exists                           |
+| `ProductTemplate` dimension bounds unenforced                       | fixed — enforced in `POST /api/orders`                                           |
+| `Company.defaultMarkupPercent` and `minOrderValue` unused           | still open — dead fields on `Company`                                            |
+| `savedConfigurations` model is unused by the UI                     | still open — no route or page                                                    |
+| `NotificationFrequency.DAILY_DIGEST` never applied                  | still open — no digest job                                                       |
+| `Order.assigneeId` never set                                        | still open — no code assigns an order to a staff member                          |
+| `OrderAttachment` upload has no route                               | still open — no file-upload endpoint                                             |
+| `staff` filter in `api/orders/route.ts:212` ignores `customerOrgId` | still open — main-company staff are notified, tenant staff are not               |
+| `CustomerPriceOverride` has no write path                           | fixed — `/api/price-overrides`                                                   |
+| `PriceList` has no management route                                 | fixed — `/api/price-lists`                                                       |
+| `ProductTemplate` has no UI tab                                     | fixed — the catalog client has a templates tab                                   |
+| `PvcProfile.colorSurchargeFactor` never read                        | fixed — applied in the pricing engine                                            |
+| `ProductTemplate.openingCount` never used in pricing                | still open — the field is carried but not priced                                 |
+| `ProcessingOption.unit` ignored                                     | still open — processing is summed flat                                           |
+| `OrderItem` rows are immutable after creation                       | still open — no `prisma.orderItem.update` outside the item-status route          |
+| The transition matrix is duplicated and has drifted                 | fixed — the client copy was deleted, both import `src/lib/status-transitions.ts` |
 
 ## What a fix looks like
 

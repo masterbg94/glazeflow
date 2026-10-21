@@ -26,6 +26,9 @@ behavior. They are checked against the code; the `docs/` files are not always.
 - `Business Logic.md`: the original product vision — intent, not implementation.
 - `BUSINESS_LOGIC_FIX.md`: the executed migration to the one-main-company model.
 - `improvements.md`: prioritized technical risks and proposed remediation.
+- `business-logic-review.md`: the current gap analysis of the business logic —
+  pricing authority, order pipeline, catalog management — with a 7-phase fix
+  plan. Start here when asking "what is missing or broken".
 - `ai-structure-plan.md`: how the AI skills, instructions, and knowledge base are
   organized, and why.
 

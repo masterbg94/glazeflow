@@ -20,7 +20,9 @@ The pipeline order used for forward/backward comparison is
 ## Who can move what
 
 `getTransitionRule(userRole, fromStatus, toStatus, platformRole)` in
-`src/lib/status-transitions.ts:78-154` is the single decision function.
+`src/lib/status-transitions.ts` is the single decision function. It is
+imported by both the server routes and the Kanban client, so the two cannot
+drift apart.
 
 | Actor                             | Forward | Backward | Cancel                | Approval needed |
 | --------------------------------- | ------- | -------- | --------------------- | --------------- |
@@ -31,7 +33,14 @@ The pipeline order used for forward/backward comparison is
 | `platformRole: COMPANY_STAFF`     | yes     | request  | request               | `COMPANY_ADMIN` |
 | `platformRole: CUSTOMER`          | no      | no       | own order while `NEW` | no              |
 
-"Forward" means a later index in `STATUS_ORDER`. "Backward" means an earlier one.
+"Forward" means the **next stage** along `PIPELINE_ORDER`. A forward move may
+not skip a stage: `NEW` → `CLOSED` is refused. `CANCELLED` sits outside the
+pipeline and has its own branch, so it is never treated as a "forward" move.
+
+`effectiveUserRole(platformRole, companyRole)` resolves the actor's role. It
+keeps the two role dimensions apart on purpose — merging them into one string
+granted admin rights to a `COMPANY_STAFF` user holding
+`companyRole: COMPANY_ADMIN`.
 
 ### The approval chain
 
@@ -44,20 +53,17 @@ OrderStatusTransition
   status = PENDING
 ```
 
-`src/app/api/orders/[id]/status/route.ts:56-90` writes this row and notifies
+`src/app/api/orders/[id]/status/route.ts` writes this row and notifies
 approvers. Approvers are main-company users whose `companyRole` is in
-`rule.approverRoles` (`src/app/api/orders/[id]/status/route.ts:80`).
+`rule.approverRoles`.
 
 An approver acts on `PATCH /api/orders/transitions/[id]` with
 `action: 'approve' | 'reject'`. Approve runs inside a `$transaction` that
-updates both the transition row and the order status
-(`src/app/api/orders/transitions/[id]/route.ts:38-60`).
+updates both the transition row and the order status.
 
-`src/lib/status-transitions.ts:69-76` resolves approver roles. For a tenant
-user it returns `['COMPANY_ADMIN']`; for main-company staff the same. The
-lookup in the API filters `companyId: order.companyId`, which is the main
-company — correct for main-company staff, but see `auth-gaps.md` #5 for the
-tenant-`companyRole` hole.
+The pending requests are listed by `GET /api/orders/transitions` and rendered
+by `src/components/dashboard/TransitionQueue.tsx` on the company orders page.
+Only main-company admins can approve; a tenant user is rejected outright.
 
 ### Order status history
 
@@ -67,41 +73,43 @@ the approval path. The order detail page renders it as a timeline.
 
 ## Order creation
 
-`POST /api/orders` (`src/app/api/orders/route.ts:25`).
+`POST /api/orders` (`src/app/api/orders/route.ts`).
 
 Flow:
 
 1. `getSession()`; `platformRole` must be `CUSTOMER` (403 otherwise). **Only
    tenants create orders** — main-company staff cannot order on a tenant's behalf.
 2. `customerOrgId` must be present in the session (401 otherwise).
-3. `companyId` is derived from `customerOrg.companyId`, **never** read from the
-   request body (`src/app/api/orders/route.ts:43-57`).
-4. Load the tenant's `PriceList.discountPercent` and active
+3. The body is validated by `validateOrderBody` in `src/lib/validation.ts`.
+   A malformed body returns 400 with the offending field named.
+4. `companyId` is derived from `customerOrg.companyId`, **never** read from the
+   request body.
+5. Load the tenant's `PriceList.discountPercent` and active
    `CustomerPriceOverride[]`.
-5. For each submitted item, look up catalog rows and price them with the
-   per-tenant override applied.
-6. `calcTotals` computes subtotal → discount → tax → total.
-7. Create the order with `status: NEW`, `paymentStatus: UNPAID`, the computed
+6. Load every referenced catalog row with one `findMany` per model, filtered by
+   `companyId` **and** `isActive`. A row that does not resolve returns 400.
+7. Check the `ProductTemplate` dimension bounds and the `applicableKinds` of
+   each hardware and processing option. A `FINISHED_WINDOW` or
+   `FINISHED_DOOR` without a `profileId` is rejected — the pricing engine drops
+   the frame cost when no profile resolves, so a frameless unit would be
+   under-priced.
+8. `calcTotals` computes subtotal → discount → tax → total.
+9. Create the order with `status: NEW`, `paymentStatus: UNPAID`, the computed
    totals, nested items, panes, hardware, processing, and a first
-   `OrderStatusHistory` row.
-8. Notify every main-company user with `platformRole` in
-   `['COMPANY_ADMIN', 'COMPANY_STAFF']` and `companyId` = the main company
-   (`src/app/api/orders/route.ts:212-225`). Email is sent too.
+   `OrderStatusHistory` row. Each glass pane stores its own price.
+10. Notify every main-company user with `platformRole` in
+    `['COMPANY_ADMIN', 'COMPANY_STAFF']` and `companyId` = the main company.
+    The emails are queued, not awaited.
 
 ### Order number
 
-`GF-<year>-<6 random digits>` (`src/app/api/orders/route.ts:149`). Random, not
-sequential — do not assume ordering by number.
+`GF-<year>-<6 random digits>`. Random, not sequential — do not assume ordering
+by number. The generator retries on a unique-constraint collision.
 
 ### Known creation gaps
 
-- Catalog lookups are not filtered by `companyId` and not filtered by
-  `isActive` (`src/app/api/orders/route.ts:88-126`). A tenant can order another
-  company's product or a deactivated one.
-- `ProductTemplate` min/max dimensions are never enforced, even though the
-  template carries them and the storefront ships them to the client.
-- No validation of `items` shape, quantities, or dimension sanity. Negative or
-  absurd values are not rejected.
+- `ProductTemplate.openingCount` is carried but never priced.
+- `ProcessingOption.unit` is ignored — processing is summed flat.
 
 ## Order items
 
@@ -132,9 +140,16 @@ not a silent re-price. `docs/Business Logic.md` §3.4 states this as a critical
 business rule.
 
 `OrderItem.status` (`PENDING` / `ACCEPTED` / `REJECTED`) is separate from the
-order status and is not written by the order-creation path — it stays
-`PENDING` until something else sets it. No code path currently sets it to
-`ACCEPTED` or `REJECTED`.
+order status. The order-creation path writes `PENDING`. A tenant sets it with
+`PATCH /api/orders/[id]/items/[itemId]`, which is scoped to the tenant's own
+orders and refused once the order has left `NEW` or `QUOTE_AMENDMENT`. The
+buttons live in `src/components/dashboard/TenantOrderActions.tsx` on the
+tenant order detail page.
+
+**Still open:** the order's own status does not react to a partial acceptance
+— a line can be `REJECTED` while the order still advances through the
+pipeline. Deciding whether partial acceptance should block the order is a
+product call, not a code gap.
 
 ## Communications
 

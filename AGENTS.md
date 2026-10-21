@@ -105,15 +105,17 @@ const nextConfig: NextConfig = {
 | Prisma Studio                    | `npm run db:studio`    |
 | Format check                     | `npm run format:check` |
 | Format write                     | `npm run format`       |
+| Type check                       | `npm run typecheck`    |
+| Unit tests                       | `npm run test`         |
 
-`npm run lint` is **broken** — `next lint` was removed in Next.js 16 and the
-script still calls it (`package.json:16`). It fails with
-`Invalid project directory provided, no such directory: .../lint`. Use
-`npm run build` for type checking. Fix the script or drop it; do not report a
-lint run as passing.
+`npm run lint` now runs `tsc --noEmit` — `next lint` was removed in Next.js 16,
+so the script was rewritten rather than left broken. `npm run typecheck` is the
+same check under a clearer name.
 
-There is no test suite configured. Verification is `npm run build` plus a manual
-check of the changed path.
+There is a Vitest suite covering the three pure modules: `pricing-engine`,
+`status-transitions`, and `validation`. Run it with `npm run test`.
+Verification is `npm run test` plus `npm run build` plus a manual check of the
+changed path.
 
 ---
 
@@ -141,30 +143,37 @@ check of the changed path.
 
 ## Security gaps to know before editing auth
 
-Full list with file:line in `knowledge-base/auth-gaps.md`. The ones most likely to
-be hit by a change:
+Full list with file:line in `knowledge-base/auth-gaps.md`. All sixteen gaps
+recorded there are fixed; the file records what each one was and where the check
+lives now, so a change does not undo one.
 
-- `POST /api/pricing/quote` has **no** session check at all.
-- `GET /api/orders` builds `where` from a possibly-undefined id; Prisma drops the
-  key and the query returns **every order**.
-- Order creation looks up catalog rows by bare id — no `companyId`, no `isActive`
-  filter.
-- `userRole = user.companyRole || user.platformRole` merges two enums; a
-  `COMPANY_STAFF` user holding `companyRole: COMPANY_ADMIN` bypasses approval.
-- Tenant scope must compare `order.customerOrgId === user.customerOrgId`. A tenant
-  user's `companyId` is the main company, so a `companyId` comparison passes for
-  every tenant's order.
-- `assertSameCompany()` exists in `src/lib/rbac.ts` but is never called.
-- 10 of 13 `requireRole` call sites let the throw escape → 500 instead of 401/403.
-  Always wrap with `toHttpError`.
+The rules a new change must keep:
+
+- Every route handler gates on a session. `getSessionUser()` from
+  `src/lib/rbac.ts` returns the typed user or null.
+- `requireRole` throws; wrap it in `try/catch` and map with `toHttpError`.
+- Tenant scope compares `order.customerOrgId === user.customerOrgId`. A tenant
+  user's `companyId` is the main company, so a `companyId` comparison passes
+  for every tenant's order.
+- The two role dimensions stay apart. `platformRole` is the access level,
+  `companyRole` is the job. `effectiveUserRole()` in
+  `src/lib/status-transitions.ts` resolves them without merging.
+- Catalog lookups filter by `companyId` **and** `isActive`.
+- The `order:update` real-time payload is an explicit pick of five fields.
+  Never publish the full Prisma row — `internalNotes` is supplier-only.
+- A user role field must match the entity that owns the user: a `companyRole`
+  on a tenant user is a 400.
 
 ---
 
 ## Session / Auth Patterns
 
-- `getSession()` from `src/lib/auth.ts` returns server session
-- User object extended with: `platformRole`, `companyRole`, `companyId`, `companySlug`, `customerOrgId`, `customerOrgSlug`, `customerOrgRole`, `id`
-- **Always cast**: `const user = session?.user as any` before accessing custom fields
+- `getSession()` from `src/lib/auth.ts` returns the server session.
+  `getSessionUser()` from `src/lib/rbac.ts` returns the typed user or null.
+- The session user is fully typed via `src/types/next-auth.d.ts`: `id`,
+  `platformRole`, `companyRole`, `companyId`, `companySlug`, `customerOrgId`,
+  `customerOrgSlug`, `customerOrgRole`. **Do not cast** — `session.user as any`
+  is no longer needed anywhere.
 - SUPER_ADMIN has `companyId: null` — handle explicitly in `(company)` routes
 - Order creation NEVER trusts client `companyId`; it is derived from session `customerOrgId`
 - `requireRole` throws; map with `toHttpError` from `src/lib/rbac.ts` in route handlers
