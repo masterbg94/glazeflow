@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireRole } from '@/lib/rbac';
+import { requireRole, toHttpError } from '@/lib/rbac';
 
 // Only the single main company lives in Company. Tenants are CustomerOrg —
 // use /api/tenants to create them. This route now manages main company
 // settings (read + patch) and lists the platform overview.
 
 export async function GET() {
-  await requireRole(['SUPER_ADMIN']);
+  try {
+    await requireRole(['SUPER_ADMIN']);
+  } catch (err) {
+    return toHttpError(err);
+  }
   const companies = await prisma.company.findMany({
     include: {
       _count: {

@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
-import { notify } from '@/lib/notifications';
+import { notifyMany } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/rbac';
 
 // Payment status is set by main company admin/superadmin only (bank payment received).
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await getSession();
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const user = session.user as any;
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   if (!['SUPER_ADMIN', 'COMPANY_ADMIN'].includes(user.platformRole)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -32,16 +31,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Notify tenant org members
   const members = await prisma.user.findMany({ where: { customerOrgId: order.customerOrgId } });
-  for (const m of members) {
-    await notify({
-      userId: m.id,
-      event: 'ORDER_STATUS_CHANGED',
-      title: `Plaćanje ${order.orderNumber}: ${paymentStatus}`,
-      body: `Status plaćanja promenjen na ${paymentStatus}.`,
-      orderId: order.id,
-      email: false,
-    });
-  }
+  await notifyMany({
+    userIds: members.map((m) => m.id),
+    event: 'ORDER_STATUS_CHANGED',
+    title: `Plaćanje ${order.orderNumber}: ${paymentStatus}`,
+    body: `Status plaćanja promenjen na ${paymentStatus}.`,
+    orderId: order.id,
+    email: false,
+  });
 
   return NextResponse.json({ order: updated });
 }

@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation';
 import { StatCard } from '@/components/dashboard/StatCard';
-import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/rbac';
 
 export default async function DashboardHome() {
-  const session = await getSession();
-  const companyId = (session?.user as any).companyId;
+  const user = await getSessionUser();
+  const companyId = user?.companyId;
   if (!companyId) redirect('/admin');
 
   const [orders, totalOrders, newOrders, totalRevenue] = await Promise.all([

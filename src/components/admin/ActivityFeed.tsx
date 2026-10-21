@@ -3,7 +3,12 @@
 import { useRouter } from 'next/navigation';
 
 interface ActivityItem {
-  type: 'company_created' | 'tenant_created' | 'order_created' | 'user_created' | 'order_status_changed';
+  type:
+    | 'company_created'
+    | 'tenant_created'
+    | 'order_created'
+    | 'user_created'
+    | 'order_status_changed';
   timestamp: string;
   companyName: string;
   companySlug: string;

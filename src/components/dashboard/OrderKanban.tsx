@@ -3,23 +3,26 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useNotifications } from '@/components/notifications/NotificationProvider';
+import {
+  getAllowedNextStatuses,
+  type OrderStatus,
+  type PlatformRole,
+  type UserRole,
+} from '@/lib/status-transitions';
 
-interface Order {
+export interface KanbanOrder {
   id: string;
   orderNumber: string;
   status: string;
   total: string;
   currency: string;
   customerOrg: { name: string };
-  items: any[];
+  items: unknown[];
   customerNotes?: string | null;
   shippingAddress?: string | null;
-  requestedDate?: string | null;
+  /** Serialized by the server component: a `Date` on the server, an ISO string over the wire. */
+  requestedDate?: string | Date | null;
 }
-
-type CompanyRole = 'COMPANY_ADMIN' | 'COMPANY_SALES' | 'COMPANY_PRODUCTION';
-type PlatformRole = 'SUPER_ADMIN' | 'COMPANY_ADMIN' | 'COMPANY_STAFF' | 'CUSTOMER';
-type UserRole = CompanyRole | PlatformRole;
 
 const COLUMNS = [
   'NEW',
@@ -32,9 +35,9 @@ const COLUMNS = [
   'CANCELLED',
 ] as const;
 
-type OrderStatus = (typeof COLUMNS)[number];
+type ColumnStatus = (typeof COLUMNS)[number];
 
-const COLUMN_LABELS: Record<OrderStatus, string> = {
+const COLUMN_LABELS: Record<ColumnStatus, string> = {
   NEW: 'Nova',
   QUOTE_AMENDMENT: 'Izmena ponude',
   CONFIRMED: 'Potvrđena',
@@ -45,112 +48,15 @@ const COLUMN_LABELS: Record<OrderStatus, string> = {
   CANCELLED: 'Otkazana',
 };
 
-const STATUS_ORDER: OrderStatus[] = [
-  'NEW',
-  'QUOTE_AMENDMENT',
-  'CONFIRMED',
-  'IN_PRODUCTION',
-  'READY',
-  'DELIVERED',
-  'CLOSED',
-];
-
-function getStatusIndex(status: OrderStatus): number {
-  return STATUS_ORDER.indexOf(status);
-}
-
-function isForwardTransition(from: OrderStatus, to: OrderStatus): boolean {
-  const fromIdx = getStatusIndex(from);
-  const toIdx = getStatusIndex(to);
-  return fromIdx !== -1 && toIdx !== -1 && toIdx > fromIdx;
-}
-
-function isBackwardTransition(from: OrderStatus, to: OrderStatus): boolean {
-  const fromIdx = getStatusIndex(from);
-  const toIdx = getStatusIndex(to);
-  return fromIdx !== -1 && toIdx !== -1 && toIdx < fromIdx;
-}
-
-function isCancellation(status: OrderStatus): boolean {
-  return status === 'CANCELLED';
-}
-
-function isMainCompanyUser(userRole: UserRole, platformRole: PlatformRole): boolean {
-  return platformRole !== 'CUSTOMER';
-}
-
-function getApproverRoles(userRole: CompanyRole, platformRole: PlatformRole): CompanyRole[] {
-  if (platformRole === 'CUSTOMER') {
-    return ['COMPANY_ADMIN'];
-  }
-  return ['COMPANY_ADMIN'];
-}
-
-function getTransitionRule(
-  userRole: UserRole,
-  fromStatus: OrderStatus,
-  toStatus: OrderStatus,
-  platformRole: PlatformRole = 'COMPANY_STAFF'
-): { allowed: boolean; requiresApproval: boolean; approverRoles: string[] } {
-  if (userRole === 'SUPER_ADMIN' || platformRole === 'SUPER_ADMIN') {
-    return { allowed: true, requiresApproval: false, approverRoles: [] };
-  }
-
-  if (userRole === 'COMPANY_ADMIN') {
-    return { allowed: true, requiresApproval: false, approverRoles: [] };
-  }
-
-  const isMainCompany = isMainCompanyUser(userRole, platformRole);
-  const approverRoles = getApproverRoles(userRole as CompanyRole, platformRole);
-
-  const isCompanyManager = userRole === 'COMPANY_PRODUCTION' || userRole === 'COMPANY_SALES';
-
-  if (isCompanyManager) {
-    if (isCancellation(toStatus))
-      return { allowed: false, requiresApproval: false, approverRoles: [] };
-    if (isForwardTransition(fromStatus, toStatus))
-      return { allowed: true, requiresApproval: false, approverRoles: [] };
-    return { allowed: false, requiresApproval: false, approverRoles: [] };
-  }
-
-  const isCompanyStaff = userRole === 'COMPANY_STAFF';
-
-  if (isCompanyStaff) {
-    if (isCancellation(toStatus)) return { allowed: true, requiresApproval: true, approverRoles };
-    if (isForwardTransition(fromStatus, toStatus))
-      return { allowed: true, requiresApproval: false, approverRoles: [] };
-    if (isBackwardTransition(fromStatus, toStatus))
-      return { allowed: true, requiresApproval: true, approverRoles };
-    return { allowed: false, requiresApproval: false, approverRoles: [] };
-  }
-
-  if (userRole === 'CUSTOMER') {
-    return { allowed: false, requiresApproval: false, approverRoles: [] };
-  }
-
-  return { allowed: false, requiresApproval: false, approverRoles: [] };
-}
-
-function getAllowedNextStatuses(
-  userRole: UserRole,
-  currentStatus: OrderStatus,
-  platformRole: PlatformRole = 'COMPANY_STAFF'
-): OrderStatus[] {
-  return STATUS_ORDER.filter((status) => {
-    const rule = getTransitionRule(userRole, currentStatus, status, platformRole);
-    return rule.allowed && !rule.requiresApproval;
-  });
-}
-
 interface OrderKanbanProps {
-  orders: Order[];
+  orders: KanbanOrder[];
   userRole: UserRole;
   platformRole: PlatformRole;
 }
 
 export function OrderKanban({ orders, userRole, platformRole }: OrderKanbanProps) {
   const { subscribeRealtime } = useNotifications();
-  const [board, setBoard] = useState<Order[]>(orders);
+  const [board, setBoard] = useState<KanbanOrder[]>(orders);
   const [updating, setUpdating] = useState<string | null>(null);
 
   // Stay in sync when the order list changes server-side (e.g. after navigation).
@@ -169,8 +75,8 @@ export function OrderKanban({ orders, userRole, platformRole }: OrderKanbanProps
             ? {
                 ...o,
                 status: updated.status,
-                customerNotes: (updated as any).customerNotes ?? o.customerNotes,
-                shippingAddress: (updated as any).shippingAddress ?? o.shippingAddress,
+                customerNotes: updated.customerNotes ?? o.customerNotes,
+                shippingAddress: updated.shippingAddress ?? o.shippingAddress,
               }
             : o
         )
@@ -198,6 +104,10 @@ export function OrderKanban({ orders, userRole, platformRole }: OrderKanbanProps
     }
   }
 
+  // The transition matrix lives in `src/lib/status-transitions.ts` and is
+  // shared with the server. It used to be copied here, and the copy had
+  // already drifted: it hid the cancel option for production and sales users
+  // while the API accepted it.
   const allowedTransitions = useMemo(() => {
     const map: Record<string, OrderStatus[]> = {};
     for (const col of COLUMNS) {
@@ -252,7 +162,7 @@ export function OrderKanban({ orders, userRole, platformRole }: OrderKanbanProps
                       >
                         {allowedNext.map((c) => (
                           <option key={c} value={c}>
-                            {COLUMN_LABELS[c] || c.replace(/_/g, ' ')}
+                            {COLUMN_LABELS[c as ColumnStatus] || c.replace(/_/g, ' ')}
                           </option>
                         ))}
                       </select>

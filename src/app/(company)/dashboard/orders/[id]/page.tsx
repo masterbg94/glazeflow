@@ -1,15 +1,15 @@
 import { notFound } from 'next/navigation';
 import { OrderMessages } from '@/components/dashboard/OrderMessages';
+import { PaymentStatusControl } from '@/components/dashboard/PaymentStatusControl';
 import { RealtimeOrderRefresher } from '@/components/dashboard/RealtimeOrderRefresher';
-import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/rbac';
 
 export default async function AdminOrderDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await getSession();
-  if (!session?.user) return <p>Molimo prijavite se.</p>;
+  const user = await getSessionUser();
+  if (!user) return <p>Molimo prijavite se.</p>;
 
-  const user = session.user as any;
   const order = await prisma.order.findUnique({
     where: { id },
     include: {
@@ -27,7 +27,10 @@ export default async function AdminOrderDetail({ params }: { params: Promise<{ i
       statusHistory: true,
     },
   });
-  if (!order || order.companyId !== user.companyId) notFound();
+  // A SUPER_ADMIN has no `companyId`, so the plain comparison would always
+  // fail and the page would 404 for the platform owner.
+  if (!order) notFound();
+  if (user.platformRole !== 'SUPER_ADMIN' && order.companyId !== user.companyId) notFound();
 
   return (
     <div className="space-y-6">
@@ -58,6 +61,12 @@ export default async function AdminOrderDetail({ params }: { params: Promise<{ i
           <p className="text-sm text-slate-600">{order.shippingAddress}</p>
         </div>
       )}
+
+      <PaymentStatusControl
+        orderId={order.id}
+        current={order.paymentStatus}
+        canEdit={user.platformRole === 'SUPER_ADMIN' || user.platformRole === 'COMPANY_ADMIN'}
+      />
 
       <div className="rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-sm">

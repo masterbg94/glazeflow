@@ -1,30 +1,31 @@
 import { redirect } from 'next/navigation';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
-import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/rbac';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession();
-  const user = session?.user as any;
+  const user = await getSessionUser();
   if (!user || !['COMPANY_ADMIN', 'COMPANY_STAFF', 'SUPER_ADMIN'].includes(user.platformRole)) {
     redirect('/login');
   }
 
   const companyId = user.companyId;
+  // `isMainCompany` replaced the legacy `isProducer` flag. The seed sets both,
+  // so this read the right answer by accident.
   let isProducer = false;
   if (companyId) {
     const company = await prisma.company.findUnique({
       where: { id: companyId },
-      select: { isProducer: true },
+      select: { isMainCompany: true },
     });
-    isProducer = company?.isProducer ?? false;
+    isProducer = company?.isMainCompany ?? false;
   } else if (user.platformRole === 'SUPER_ADMIN') {
     const main = await prisma.company.findFirst({
       where: { isMainCompany: true },
-      select: { isProducer: true },
+      select: { isMainCompany: true },
     });
-    isProducer = main?.isProducer ?? false;
+    isProducer = main?.isMainCompany ?? false;
   }
 
   return (

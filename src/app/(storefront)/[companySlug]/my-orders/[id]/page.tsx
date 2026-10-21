@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation';
 import { OrderMessages } from '@/components/dashboard/OrderMessages';
 import { RealtimeOrderRefresher } from '@/components/dashboard/RealtimeOrderRefresher';
-import { getSession } from '@/lib/auth';
+import { TenantOrderActions } from '@/components/dashboard/TenantOrderActions';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/rbac';
 
 export default async function OrderDetail({
   params,
@@ -10,8 +11,7 @@ export default async function OrderDetail({
   params: Promise<{ id: string; companySlug: string }>;
 }) {
   const { id } = await params;
-  const session = await getSession();
-  const user = session?.user as any;
+  const user = await getSessionUser();
   if (!user) return <p>Molimo prijavite se.</p>;
 
   const order = await prisma.order.findUnique({
@@ -113,6 +113,13 @@ export default async function OrderDetail({
       </div>
 
       <OrderMessages orderId={order.id} />
+
+      <TenantOrderActions
+        orderId={order.id}
+        status={order.status}
+        items={order.items.map((i) => ({ id: i.id, status: i.status }))}
+        canCancel={order.status === 'NEW'}
+      />
     </div>
   );
 }

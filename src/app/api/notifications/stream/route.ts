@@ -1,16 +1,16 @@
 import { NextRequest } from 'next/server';
-import { getSession } from '@/lib/auth';
+import { getSessionUser } from '@/lib/rbac';
 import { registerSSE, unregisterSSE } from '@/lib/realtime';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session?.user) {
+  const user = await getSessionUser();
+  if (!user) {
     return new Response('Unauthorized', { status: 401 });
   }
-  const userId = (session.user as any).id;
+  const userId = user.id;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({

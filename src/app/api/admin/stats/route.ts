@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireRole } from '@/lib/rbac';
+import { requireRole, toHttpError } from '@/lib/rbac';
 
 export async function GET() {
-  await requireRole(['SUPER_ADMIN']);
+  try {
+    await requireRole(['SUPER_ADMIN']);
+  } catch (err) {
+    return toHttpError(err);
+  }
 
   const [
     companiesCount,

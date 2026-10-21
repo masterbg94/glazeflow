@@ -25,6 +25,8 @@ export interface PricedItem {
   processingCost: number;
   unitPrice: number;
   lineTotal: number;
+  /** Per-pane price, so a mixed-thickness unit is not billed evenly. */
+  panePrices: number[];
 }
 
 export function areaSqm(widthMm: number, heightMm: number): number {
@@ -48,6 +50,8 @@ export function calcItemPricing(input: {
   lengthM?: number;
   quantity: number;
   profileSellPricePerMeter?: number;
+  /** Profile colour surcharge factor, e.g. 1.15 for a +15% colour surcharge. */
+  profileColorFactor?: number;
   complexityMultiplier: number;
   glassPanes: GlassPaneInput[];
   hardware: HardwareInput[];
@@ -59,6 +63,7 @@ export function calcItemPricing(input: {
   let processingCost = 0;
   let area: number | undefined;
   let perim: number | undefined;
+  const panePrices: number[] = [];
 
   if (
     input.kind === 'GLASS_ONLY' ||
@@ -69,15 +74,21 @@ export function calcItemPricing(input: {
     const h = input.heightMm ?? 0;
     area = areaSqm(w, h);
     perim = perimeterM(w, h);
-    glassCost = input.glassPanes.reduce((sum, p) => sum + glassPanePrice(p, area!), 0);
+    for (const pane of input.glassPanes) {
+      const price = glassPanePrice(pane, area);
+      panePrices.push(price);
+      glassCost += price;
+    }
     if (input.kind !== 'GLASS_ONLY' && input.profileSellPricePerMeter) {
-      profileCost = perim * input.profileSellPricePerMeter;
+      const colorFactor = input.profileColorFactor ?? 1;
+      profileCost = perim * input.profileSellPricePerMeter * colorFactor;
     }
   }
 
   if (input.kind === 'RAW_PROFILE') {
     const len = input.lengthM ?? 0;
-    profileCost = len * (input.profileSellPricePerMeter ?? 0);
+    const colorFactor = input.profileColorFactor ?? 1;
+    profileCost = len * (input.profileSellPricePerMeter ?? 0) * colorFactor;
   }
 
   hardwareCost = input.hardware.reduce((s, h) => s + h.sellPrice * h.quantity, 0);
@@ -86,7 +97,9 @@ export function calcItemPricing(input: {
   const baseUnit =
     (profileCost + glassCost + hardwareCost + processingCost) * input.complexityMultiplier;
   const unitPrice = Math.round(baseUnit * 100) / 100;
-  const lineTotal = Math.round(unitPrice * input.quantity * 100) / 100;
+  // Derive the line total from the unrounded base. Rounding the unit first and
+  // then multiplying drifts by up to quantity × 0.005.
+  const lineTotal = Math.round(baseUnit * input.quantity * 100) / 100;
 
   return {
     areaSqm: area,
@@ -97,6 +110,7 @@ export function calcItemPricing(input: {
     processingCost,
     unitPrice,
     lineTotal,
+    panePrices,
   };
 }
 

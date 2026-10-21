@@ -15,7 +15,9 @@ const sessionCookieDomain = isLocalhost
   : `.${(process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000').split(':')[0]}`;
 
 export const authOptions: NextAuthOptions = {
-  session: { strategy: 'jwt' },
+  session: {
+    strategy: 'jwt',
+  },
   pages: { signIn: '/login' },
   cookies: {
     sessionToken: {
@@ -24,7 +26,7 @@ export const authOptions: NextAuthOptions = {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: false,
+        secure: process.env.NODE_ENV === 'production',
         ...(sessionCookieDomain ? { domain: sessionCookieDomain } : {}),
       },
     },
@@ -59,34 +61,64 @@ export const authOptions: NextAuthOptions = {
           customerOrgId: user.customerOrgId,
           customerOrgSlug: user.customerOrg?.slug ?? null,
           customerOrgRole: user.customerOrgRole,
-        } as any;
+        };
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.platformRole = (user as any).platformRole;
-        token.companyRole = (user as any).companyRole;
-        token.companyId = (user as any).companyId;
-        token.companySlug = (user as any).companySlug;
-        token.customerOrgId = (user as any).customerOrgId;
-        token.customerOrgSlug = (user as any).customerOrgSlug;
-        token.customerOrgRole = (user as any).customerOrgRole;
-        token.uid = (user as any).id;
+        token.platformRole = user.platformRole;
+        token.companyRole = user.companyRole;
+        token.companyId = user.companyId;
+        token.companySlug = user.companySlug;
+        token.customerOrgId = user.customerOrgId;
+        token.customerOrgSlug = user.customerOrgSlug;
+        token.customerOrgRole = user.customerOrgRole;
+        token.uid = user.id;
+        return token;
       }
+      // The JWT strategy serves the session from the token, so a role change or
+      // a deactivation would otherwise stay invisible until the token expires.
+      // Re-reading the user on every request is one indexed primary-key lookup.
+      const current = await prisma.user.findUnique({
+        where: { id: token.uid },
+        select: {
+          isActive: true,
+          platformRole: true,
+          companyRole: true,
+          companyId: true,
+          customerOrgId: true,
+          customerOrgRole: true,
+          company: { select: { slug: true } },
+          customerOrg: { select: { slug: true } },
+        },
+      });
+      // Throwing here makes NextAuth drop the session cookie and answer the
+      // session request with an empty body, so `getSession()` returns null.
+      // That is the only reliable way to invalidate a JWT session in v4.
+      if (!current || !current.isActive) {
+        throw new Error('Session invalidated');
+      }
+      token.platformRole = current.platformRole;
+      token.companyRole = current.companyRole;
+      token.companyId = current.companyId;
+      token.companySlug = current.company?.slug ?? null;
+      token.customerOrgId = current.customerOrgId;
+      token.customerOrgSlug = current.customerOrg?.slug ?? null;
+      token.customerOrgRole = current.customerOrgRole;
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.uid;
-        (session.user as any).platformRole = token.platformRole;
-        (session.user as any).companyRole = token.companyRole;
-        (session.user as any).companyId = token.companyId;
-        (session.user as any).companySlug = token.companySlug;
-        (session.user as any).customerOrgId = token.customerOrgId;
-        (session.user as any).customerOrgSlug = token.customerOrgSlug;
-        (session.user as any).customerOrgRole = token.customerOrgRole;
+        session.user.id = token.uid;
+        session.user.platformRole = token.platformRole;
+        session.user.companyRole = token.companyRole;
+        session.user.companyId = token.companyId;
+        session.user.companySlug = token.companySlug;
+        session.user.customerOrgId = token.customerOrgId;
+        session.user.customerOrgSlug = token.customerOrgSlug;
+        session.user.customerOrgRole = token.customerOrgRole;
       }
       return session;
     },

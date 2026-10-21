@@ -164,7 +164,13 @@ export default function CompanyDetailPage() {
       }
 
       setSuccess(`Korisnik ${data.user.name} dodat uspešno`);
-      setFormData({ email: '', name: '', password: '', companyRole: 'COMPANY_ADMIN', customerOrgRole: 'TENANT_MANAGER' });
+      setFormData({
+        email: '',
+        name: '',
+        password: '',
+        companyRole: 'COMPANY_ADMIN',
+        customerOrgRole: 'TENANT_MANAGER',
+      });
       setShowAddUser(false);
       fetchData();
     } catch (err) {
@@ -328,7 +334,9 @@ export default function CompanyDetailPage() {
 
       <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold">Top {isTenant ? 'korisnici' : 'klijenti'} (po broju narudžbina)</h2>
+          <h2 className="mb-4 text-lg font-semibold">
+            Top {isTenant ? 'korisnici' : 'klijenti'} (po broju narudžbina)
+          </h2>
           {topCustomers.length > 0 ? (
             <ul className="space-y-2">
               {topCustomers.map((c) => (
@@ -342,7 +350,9 @@ export default function CompanyDetailPage() {
               ))}
             </ul>
           ) : (
-            <p className="text-slate-500 text-center py-8">Nema {isTenant ? 'korisnika' : 'klijenata'}</p>
+            <p className="text-slate-500 text-center py-8">
+              Nema {isTenant ? 'korisnika' : 'klijenata'}
+            </p>
           )}
         </div>
         {company.type === 'company' && (
@@ -394,7 +404,9 @@ export default function CompanyDetailPage() {
       </div>
 
       <div className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold">{isTenant ? 'Detalji tenanta' : 'Detalji kompanije'}</h2>
+        <h2 className="mb-4 text-lg font-semibold">
+          {isTenant ? 'Detalji tenanta' : 'Detalji kompanije'}
+        </h2>
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
           <div>
             <dt className="text-slate-500">Status</dt>
@@ -427,8 +439,8 @@ export default function CompanyDetailPage() {
                 {company.counts.catalog.glassTypes} staklo, {company.counts.catalog.pvcProfiles}{' '}
                 profili, {company.counts.catalog.hardwareItems} oprema,{' '}
                 {company.counts.catalog.productTemplates} šablona,{' '}
-                {company.counts.catalog.processingOptions} obrada, {company.counts.catalog.priceLists}{' '}
-                cenovnika
+                {company.counts.catalog.processingOptions} obrada,{' '}
+                {company.counts.catalog.priceLists} cenovnika
               </dd>
             </div>
           )}

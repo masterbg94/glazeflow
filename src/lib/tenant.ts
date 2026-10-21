@@ -1,19 +1,30 @@
 import { notFound } from 'next/navigation';
 import { prisma } from './prisma';
 
-export async function getCompanyBySlug(slug: string) {
-  const company = await prisma.company.findUnique({
-    where: { slug },
-    include: {
-      glassTypes: { where: { isActive: true } },
-      pvcProfiles: { where: { isActive: true } },
-      hardwareItems: { where: { isActive: true } },
-      productTemplates: { where: { isActive: true } },
-      processingOptions: { where: { isActive: true } },
-    },
-  });
-  if (!company || !company.isActive) notFound();
-  return company;
+/**
+ * Prisma `Json` columns come back as `JsonValue`. These helpers narrow them to
+ * the shape the client expects, so a malformed value in the database cannot
+ * reach the browser as an unexpected type.
+ */
+function toStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.map(String);
+}
+
+function toNumberArray(value: unknown): number[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.map(Number).filter((n) => Number.isFinite(n));
+}
+
+function toNumberMap(value: unknown): Record<string, number> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const source = value as Record<string, unknown>;
+  const result: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(source)) {
+    const n = Number(raw);
+    if (Number.isFinite(n)) result[key] = n;
+  }
+  return result;
 }
 
 /**
@@ -55,18 +66,33 @@ export async function getTenantCatalog(customerOrgId: string) {
         },
       },
       priceList: { select: { discountPercent: true } },
-      priceOverrides: { where: { isActive: true } },
+      // Newest first, so the lookup below picks the most recent override when
+      // more than one row exists for the same item.
+      priceOverrides: { where: { isActive: true }, orderBy: { createdAt: 'desc' } },
     },
   });
   if (!tenant) notFound();
 
-  const apply = <T extends { id: string }>(
+  // The override lookup was O(catalog × overrides) — a `find` inside a `map`.
+  // A Map keyed by `${field}:${id}` makes it O(catalog + overrides).
+  // The rows arrive newest-first, so the first row seen for a key wins —
+  // `set` on every row would leave the oldest one in the map.
+  const overrideByKey = new Map<string, (typeof tenant.priceOverrides)[number]>();
+  for (const override of tenant.priceOverrides) {
+    for (const field of ['glassTypeId', 'profileId', 'hardwareId', 'templateId'] as const) {
+      const itemId = override[field];
+      if (!itemId) continue;
+      const key = `${field}:${itemId}`;
+      if (!overrideByKey.has(key)) overrideByKey.set(key, override);
+    }
+  }
+
+  const apply = (
     baseSell: number,
-    items: T[],
-    item: T,
+    item: { id: string },
     field: 'glassTypeId' | 'profileId' | 'hardwareId' | 'templateId'
   ) => {
-    const override = tenant.priceOverrides.find((o) => o[field] === item.id);
+    const override = overrideByKey.get(`${field}:${item.id}`);
     if (!override) return baseSell;
     if (override.overrideSellPrice != null) return Number(override.overrideSellPrice);
     if (override.discountPercent != null) {
@@ -77,7 +103,12 @@ export async function getTenantCatalog(customerOrgId: string) {
 
   const c = tenant.company;
   return {
-    company: { id: c.id, name: c.name, currency: c.currency },
+    company: {
+      id: c.id,
+      name: c.name,
+      currency: c.currency,
+      taxRatePercent: Number(c.taxRatePercent),
+    },
     tenant: {
       id: tenant.id,
       name: tenant.name,
@@ -89,12 +120,12 @@ export async function getTenantCatalog(customerOrgId: string) {
       id: g.id,
       name: g.name,
       category: g.category,
-      availableThicknessMm: g.availableThicknessMm,
+      availableThicknessMm: toNumberArray(g.availableThicknessMm),
       isSafetyGlass: g.isSafetyGlass,
       isLowE: g.isLowE,
       soundReductionDb: g.soundReductionDb,
       baseThicknessMm: g.baseThicknessMm,
-      sellPricePerSqm: apply(Number(g.sellPricePerSqm), c.glassTypes, g, 'glassTypeId'),
+      sellPricePerSqm: apply(Number(g.sellPricePerSqm), g, 'glassTypeId'),
       thicknessSurchargePercentPerMm: Number(g.thicknessSurchargePercentPerMm),
     })),
     pvcProfiles: c.pvcProfiles.map((p) => ({
@@ -104,17 +135,18 @@ export async function getTenantCatalog(customerOrgId: string) {
       chamberCount: p.chamberCount,
       installDepthMm: p.installDepthMm,
       wallThicknessClass: p.wallThicknessClass,
-      colorOptions: p.colorOptions,
+      colorOptions: toStringArray(p.colorOptions),
+      colorSurchargeFactor: toNumberMap(p.colorSurchargeFactor),
       maxGlassThicknessMm: p.maxGlassThicknessMm,
-      sellPricePerMeter: apply(Number(p.sellPricePerMeter), c.pvcProfiles, p, 'profileId'),
+      sellPricePerMeter: apply(Number(p.sellPricePerMeter), p, 'profileId'),
     })),
     hardwareItems: c.hardwareItems.map((h) => ({
       id: h.id,
       name: h.name,
       category: h.category,
       unit: h.unit,
-      applicableKinds: Array.isArray(h.applicableKinds) ? (h.applicableKinds as string[]) : null,
-      sellPrice: apply(Number(h.sellPrice), c.hardwareItems, h, 'hardwareId'),
+      applicableKinds: toStringArray(h.applicableKinds),
+      sellPrice: apply(Number(h.sellPrice), h, 'hardwareId'),
     })),
     productTemplates: c.productTemplates.map((t) => ({
       id: t.id,

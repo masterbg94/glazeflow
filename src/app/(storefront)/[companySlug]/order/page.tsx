@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { OrderWizard } from '@/components/order-wizard/OrderWizard';
-import { getSession } from '@/lib/auth';
+import { getSessionUser } from '@/lib/rbac';
 import { getTenantBySlug, getTenantCatalog } from '@/lib/tenant';
 
 export default async function OrderPage({ params }: { params: Promise<{ companySlug: string }> }) {
@@ -8,8 +8,7 @@ export default async function OrderPage({ params }: { params: Promise<{ companyS
   const tenant = await getTenantBySlug(tenantSlug);
 
   // Only members of this tenant order here (cross-tenant safety)
-  const session = await getSession();
-  const user = session?.user as any;
+  const user = await getSessionUser();
   if (!user?.customerOrgId) redirect('/login');
   if (user.customerOrgId !== tenant.id) redirect(`/${user.customerOrgSlug ?? ''}`);
 
@@ -25,6 +24,8 @@ export default async function OrderPage({ params }: { params: Promise<{ companyS
       <OrderWizard
         currency={catalog.company.currency}
         defaultShippingAddress={catalog.tenant.shippingAddress ?? ''}
+        discountPercent={catalog.tenant.discountPercent}
+        taxRatePercent={catalog.company.taxRatePercent}
         glassTypes={catalog.glassTypes}
         profiles={catalog.pvcProfiles}
         hardwareItems={catalog.hardwareItems}

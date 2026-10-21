@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireRole } from '@/lib/rbac';
+import { requireRole, toHttpError } from '@/lib/rbac';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireRole(['SUPER_ADMIN']);
+  let session;
+  try {
+    session = await requireRole(['SUPER_ADMIN']);
+  } catch (err) {
+    return toHttpError(err);
+  }
   const { id } = await params;
 
   const company = await prisma.company.findUnique({

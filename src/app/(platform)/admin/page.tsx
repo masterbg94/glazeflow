@@ -48,7 +48,12 @@ interface AdminStats {
   usersByPlatformRole: Record<string, number>;
   companiesDetail: CompanyDetail[];
   recentActivity: Array<{
-    type: 'company_created' | 'tenant_created' | 'order_created' | 'user_created' | 'order_status_changed';
+    type:
+      | 'company_created'
+      | 'tenant_created'
+      | 'order_created'
+      | 'user_created'
+      | 'order_status_changed';
     timestamp: string;
     companyName: string;
     companySlug: string;
@@ -246,9 +251,13 @@ export default function AdminPage() {
                   </td>
                   <td className="p-4 font-mono text-sm">{c.slug}</td>
                   <td className="p-4">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-                      c.type === 'company' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                    }`}>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                        c.type === 'company'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-purple-100 text-purple-700'
+                      }`}
+                    >
                       {c.type === 'company' ? 'Kompanija' : 'Tenant'}
                     </span>
                   </td>
@@ -260,7 +269,8 @@ export default function AdminPage() {
                         <span>{c.counts.customerOrgs} klijenata</span>
                         <br />
                         <span className="text-xs text-slate-500">
-                          {c.counts.catalog.glassTypes} staklo, {c.counts.catalog.pvcProfiles} profili
+                          {c.counts.catalog.glassTypes} staklo, {c.counts.catalog.pvcProfiles}{' '}
+                          profili
                         </span>
                       </>
                     ) : (
@@ -272,17 +282,23 @@ export default function AdminPage() {
                       <div>
                         <span className="font-medium">{c.priceList.name}</span>
                         <br />
-                        <span className="text-xs text-slate-500">Popust: {c.priceList.discountPercent}%</span>
+                        <span className="text-xs text-slate-500">
+                          Popust: {c.priceList.discountPercent}%
+                        </span>
                       </div>
                     ) : (
                       <span className="text-slate-500">—</span>
                     )}
                   </td>
                   <td className="p-4">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-                      c.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                    }`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${c.isActive ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                        c.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${c.isActive ? 'bg-green-500' : 'bg-red-500'}`}
+                      />
                       {c.isActive ? 'Aktivan' : 'Neaktivan'}
                     </span>
                   </td>

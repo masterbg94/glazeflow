@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { notify } from '@/lib/notifications';
+import { notify, notifyMany } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
 import { publishToUsers } from '@/lib/realtime';
 
@@ -8,16 +8,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const user = session.user as any;
+  const user = session.user;
 
-  if (
-    !['SUPER_ADMIN', 'COMPANY_ADMIN'].includes(user.platformRole) &&
-    user.companyRole !== 'COMPANY_ADMIN'
-  ) {
+  // Only main-company admins approve transitions. A tenant user must never be
+  // able to approve anything, and a tenant's `companyRole` must not be enough.
+  const isMainCompanyAdmin =
+    user.platformRole === 'SUPER_ADMIN' ||
+    (user.platformRole === 'COMPANY_ADMIN' && user.companyRole === 'COMPANY_ADMIN');
+  if (!isMainCompanyAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { action, note } = await req.json(); // action: 'approve' | 'reject'
+  if (action !== 'approve' && action !== 'reject') {
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  }
 
   const transition = await prisma.orderStatusTransition.findUnique({
     where: { id },
@@ -31,7 +36,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     );
   }
 
-  if (transition.order.companyId !== user.companyId && user.platformRole !== 'SUPER_ADMIN') {
+  // A tenant user's `companyId` is the main company and `order.companyId` is
+  // also the main company, so that comparison never isolated a tenant. The
+  // approver must be main-company staff: compare `companyId` and require a
+  // main-company role.
+  if (user.platformRole !== 'SUPER_ADMIN') {
+    if (!user.companyId || transition.order.companyId !== user.companyId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
+  if (user.customerOrgId) {
+    // A tenant user reached the gate through a role that should not have been
+    // granted. Reject outright.
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -81,7 +97,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     ];
     publishToUsers(recipientIds, 'order:update', {
       orderId: transition.orderId,
-      order: updatedOrder,
+      order: {
+        id: updatedOrder.id,
+        status: updatedOrder.status,
+        orderNumber: updatedOrder.orderNumber,
+        customerNotes: updatedOrder.customerNotes,
+        shippingAddress: updatedOrder.shippingAddress,
+      },
     });
 
     // Notify requester
@@ -95,38 +117,32 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
 
     // Notify customer org
-    for (const m of members) {
-      await notify({
-        userId: m.id,
-        event: 'ORDER_STATUS_CHANGED',
-        title: `Order ${transition.order.orderNumber}: ${transition.toStatus}`,
-        body: `Status updated to ${transition.toStatus}.`,
-        orderId: transition.orderId,
-        email: true,
-      });
-    }
-
-    return NextResponse.json({ order: updatedOrder });
-  }
-
-  if (action === 'reject') {
-    await prisma.orderStatusTransition.update({
-      where: { id },
-      data: { status: 'REJECTED', approvedBy: user.id, approvedAt: new Date() },
-    });
-
-    // Notify requester
-    await notify({
-      userId: transition.requestedBy,
+    await notifyMany({
+      userIds: members.map((m) => m.id),
       event: 'ORDER_STATUS_CHANGED',
-      title: `Status change rejected: ${transition.order.orderNumber}`,
-      body: `Your request to change status from ${transition.fromStatus} to ${transition.toStatus} was rejected. Reason: ${note || 'No reason provided'}`,
+      title: `Order ${transition.order.orderNumber}: ${transition.toStatus}`,
+      body: `Status updated to ${transition.toStatus}.`,
       orderId: transition.orderId,
       email: true,
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ order: updatedOrder });
   }
 
-  return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  await prisma.orderStatusTransition.update({
+    where: { id },
+    data: { status: 'REJECTED', approvedBy: user.id, approvedAt: new Date() },
+  });
+
+  // Notify requester
+  await notify({
+    userId: transition.requestedBy,
+    event: 'ORDER_STATUS_CHANGED',
+    title: `Status change rejected: ${transition.order.orderNumber}`,
+    body: `Your request to change status from ${transition.fromStatus} to ${transition.toStatus} was rejected. Reason: ${note || 'No reason provided'}`,
+    orderId: transition.orderId,
+    email: true,
+  });
+
+  return NextResponse.json({ success: true });
 }

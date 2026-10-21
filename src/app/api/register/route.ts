@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     return toHttpError(err);
   }
-  const admin = session.user as any;
+  const admin = session.user;
 
   const body = await req.json();
   const { email, password, name, customerOrgId, customerOrgRole } = body;

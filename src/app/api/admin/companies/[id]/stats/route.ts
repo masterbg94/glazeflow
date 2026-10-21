@@ -1,9 +1,43 @@
+import type { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireRole } from '@/lib/rbac';
+import { requireRole, toHttpError } from '@/lib/rbac';
+
+/**
+ * Revenue per calendar month for the last six months.
+ *
+ * Implemented in JavaScript rather than raw SQL so the route works on both
+ * SQLite and PostgreSQL. The `strftime()` / `CAST(... AS REAL)` version was
+ * SQLite-only and blocked the database move.
+ */
+async function monthlyRevenueFor(where: Prisma.OrderWhereInput) {
+  const since = new Date();
+  since.setMonth(since.getMonth() - 6);
+  since.setDate(1);
+  since.setHours(0, 0, 0, 0);
+
+  const orders = await prisma.order.findMany({
+    where: { ...where, createdAt: { gte: since } },
+    select: { createdAt: true, total: true },
+  });
+
+  const byMonth = new Map<string, number>();
+  for (const order of orders) {
+    const month = order.createdAt.toISOString().slice(0, 7);
+    byMonth.set(month, (byMonth.get(month) ?? 0) + Number(order.total));
+  }
+
+  return [...byMonth.entries()]
+    .map(([month, revenue]) => ({ month, revenue }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+}
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  await requireRole(['SUPER_ADMIN']);
+  try {
+    await requireRole(['SUPER_ADMIN']);
+  } catch (err) {
+    return toHttpError(err);
+  }
   const { id } = await params;
 
   // Try to find as Company first
@@ -62,6 +96,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   let monthlyRevenue: any[] = [];
   let topCustomers: any[] = [];
 
+  // The monthly revenue trend used to be computed with `strftime()` and
+  // `CAST(... AS REAL)`, which are SQLite-only and blocked the PostgreSQL
+  // move. The rows are now read with Prisma and bucketed in JavaScript, which
+  // works on both providers.
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+  const trendWhere = entityType === 'company' ? { companyId: id } : { customerOrgId: id };
+
   if (entityType === 'company') {
     [ordersByStatus, revenueAgg, monthlyRevenue, topCustomers] = await Promise.all([
       prisma.order.groupBy({
@@ -73,16 +116,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         where: { companyId: id },
         _sum: { total: true },
       }),
-      prisma.$queryRaw<Array<{ month: string; revenue: number }>>`
-        SELECT 
-          strftime('%Y-%m', "createdAt") as month,
-          SUM(CAST("total" AS REAL)) as revenue
-        FROM "Order"
-        WHERE "companyId" = ${id}
-          AND "createdAt" >= datetime('now', '-6 months')
-        GROUP BY strftime('%Y-%m', "createdAt")
-        ORDER BY month ASC
-      `,
+      monthlyRevenueFor(trendWhere),
       prisma.customerOrg.findMany({
         where: { companyId: id },
         include: {
@@ -104,16 +138,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         where: { customerOrgId: id },
         _sum: { total: true },
       }),
-      prisma.$queryRaw<Array<{ month: string; revenue: number }>>`
-        SELECT 
-          strftime('%Y-%m', "createdAt") as month,
-          SUM(CAST("total" AS REAL)) as revenue
-        FROM "Order"
-        WHERE "customerOrgId" = ${id}
-          AND "createdAt" >= datetime('now', '-6 months')
-        GROUP BY strftime('%Y-%m', "createdAt")
-        ORDER BY month ASC
-      `,
+      monthlyRevenueFor(trendWhere),
       prisma.order.groupBy({
         where: { customerOrgId: id },
         by: ['createdById'],

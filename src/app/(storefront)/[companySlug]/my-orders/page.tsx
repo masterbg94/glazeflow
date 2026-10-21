@@ -1,21 +1,23 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/rbac';
 import { getTenantBySlug } from '@/lib/tenant';
 
 export default async function MyOrders({ params }: { params: Promise<{ companySlug: string }> }) {
   const { companySlug: tenantSlug } = await params;
   const tenant = await getTenantBySlug(tenantSlug);
-  const session = await getSession();
-  const user = session?.user as any;
+  const user = await getSessionUser();
   if (!user?.customerOrgId) return <p>Molimo prijavite se da biste videli narudžbine.</p>;
   if (user.customerOrgId !== tenant.id) redirect(`/${user.customerOrgSlug ?? ''}`);
 
-  // Whole tenant org sees shared orders (admin and manager both track orders)
+  // Whole tenant org sees shared orders (admin and manager both track orders).
+  // The list is bounded so a tenant with a long history does not load every
+  // order on every page view.
   const orders = await prisma.order.findMany({
     where: { customerOrgId: user.customerOrgId },
     orderBy: { createdAt: 'desc' },
+    take: 100,
     include: { items: true },
   });
 

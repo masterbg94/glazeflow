@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/rbac';
+import type { OrderStatus } from '@/lib/status-transitions';
 import { getTenantBySlug } from '@/lib/tenant';
 
-const DUE_STATUSES = ['DELIVERED', 'CLOSED'] as const;
+const DUE_STATUSES: OrderStatus[] = ['DELIVERED', 'CLOSED'];
 
 export default async function FinancePage({
   params,
@@ -12,8 +13,7 @@ export default async function FinancePage({
 }) {
   const { companySlug: tenantSlug } = await params;
   const tenant = await getTenantBySlug(tenantSlug);
-  const session = await getSession();
-  const user = session?.user as any;
+  const user = await getSessionUser();
 
   // Tenant admin only — managers do not see finance
   if (!user) redirect('/login');
@@ -24,10 +24,11 @@ export default async function FinancePage({
   const orders = await prisma.order.findMany({
     where: { customerOrgId: tenant.id },
     orderBy: { createdAt: 'desc' },
+    take: 500,
   });
 
   const payable = orders.filter(
-    (o) => DUE_STATUSES.includes(o.status as any) && o.paymentStatus !== 'PAID'
+    (o) => DUE_STATUSES.includes(o.status as OrderStatus) && o.paymentStatus !== 'PAID'
   );
   const payableSum = payable.reduce((sum, o) => sum + Number(o.total), 0);
   const totalSpent = orders.reduce((sum, o) => sum + Number(o.total), 0);

@@ -52,6 +52,9 @@ function sendTo(userId: string, data: unknown) {
       clients.delete(client);
     }
   }
+  // A dead client leaves an empty Set behind. Without this the map grows one
+  // empty entry per departed user for the life of the process.
+  if (clients.size === 0) sseClients.delete(userId);
 }
 
 /**

@@ -1,51 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { notify } from '@/lib/notifications';
+import { notify, notifyMany } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
 import { publishToUsers } from '@/lib/realtime';
-import { getTransitionRule, OrderStatus } from '@/lib/status-transitions';
+import {
+  effectiveUserRole,
+  getTransitionRule,
+  isOrderStatus,
+  type OrderStatus,
+} from '@/lib/status-transitions';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const user = session.user as any;
-  const userRole = user.companyRole || user.platformRole;
-  const platformRole = user.platformRole;
+  const user = session.user;
 
-  if (
-    ![
-      'SUPER_ADMIN',
-      'COMPANY_ADMIN',
-      'COMPANY_STAFF',
-      'COMPANY_PRODUCTION',
-      'COMPANY_SALES',
-      'CUSTOMER',
-    ].includes(userRole)
-  ) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  // The two role dimensions answer different questions. Keep them apart:
+  // `platformRole` is the access level, `companyRole` is the job.
+  const platformRole = user.platformRole;
+  const userRole = effectiveUserRole(platformRole, user.companyRole);
 
   const { status: newStatus, note, reason } = await req.json();
+  if (!isOrderStatus(newStatus)) {
+    return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+  }
+
   const order = await prisma.order.findUnique({ where: { id }, include: { customerOrg: true } });
   if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // Tenant users: only own orders, any check against their org
-  if (user.customerOrgId) {
-    if (order.customerOrgId !== user.customerOrgId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  // Tenant users: only their own orders. A tenant user's `companyId` points at
+  // the main company, so the comparison must be on `customerOrgId`.
+  if (platformRole === 'CUSTOMER') {
+    if (!user.customerOrgId || order.customerOrgId !== user.customerOrgId) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-  } else if (order.companyId !== user.companyId && user.platformRole !== 'SUPER_ADMIN') {
+  } else if (platformRole !== 'SUPER_ADMIN' && order.companyId !== user.companyId) {
     // Main company staff must belong to the order's company; superadmin bypasses
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const rule = getTransitionRule(
-    userRole,
-    order.status as OrderStatus,
-    newStatus as OrderStatus,
-    platformRole
-  );
+  const rule = getTransitionRule(userRole, order.status as OrderStatus, newStatus, platformRole);
 
   if (!rule.allowed) {
     return NextResponse.json({ error: 'Transition not allowed for your role' }, { status: 403 });
@@ -58,7 +53,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         orderId: id,
         requestedBy: user.id,
         fromStatus: order.status as OrderStatus,
-        toStatus: newStatus as OrderStatus,
+        toStatus: newStatus,
         reason: reason || note,
         status: 'PENDING',
       },
@@ -128,16 +123,34 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const recipientIds = [
     ...new Set([...members, ...staff].map((u) => u.id).filter((uid) => uid !== user.id)),
   ];
-  publishToUsers(recipientIds, 'order:update', { orderId: order.id, order: updated });
+  publishToUsers(recipientIds, 'order:update', {
+    orderId: order.id,
+    order: {
+      id: updated.id,
+      status: updated.status,
+      orderNumber: updated.orderNumber,
+      customerNotes: updated.customerNotes,
+      shippingAddress: updated.shippingAddress,
+    },
+  });
 
-  for (const m of members) {
-    await notify({
-      userId: m.id,
-      event: 'ORDER_STATUS_CHANGED',
-      title: `Order ${order.orderNumber}: ${newStatus}`,
-      body: note || `Status updated to ${newStatus}.`,
+  await notifyMany({
+    userIds: members.map((m) => m.id),
+    event: newStatus === 'CONFIRMED' ? 'ORDER_CONFIRMED' : 'ORDER_STATUS_CHANGED',
+    title: `Order ${order.orderNumber}: ${newStatus}`,
+    body: note || `Status updated to ${newStatus}.`,
+    orderId: order.id,
+    email: true,
+  });
+
+  if (newStatus === 'READY') {
+    await notifyMany({
+      userIds: staff.map((s) => s.id).filter((uid) => uid !== user.id),
+      event: 'ORDER_READY',
+      title: `Order ${order.orderNumber} is ready`,
+      body: `Status updated to ${newStatus}.`,
       orderId: order.id,
-      email: true,
+      email: false,
     });
   }
 

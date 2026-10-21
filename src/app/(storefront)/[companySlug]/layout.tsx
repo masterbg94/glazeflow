@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { SignOutButton } from '@/components/auth/SignOutButton';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
-import { getSession } from '@/lib/auth';
+import { getSessionUser } from '@/lib/rbac';
 import { getTenantBySlug } from '@/lib/tenant';
 
 export default async function StorefrontLayout({
@@ -14,8 +14,7 @@ export default async function StorefrontLayout({
   // The slug segment is the TENANT slug (tenant1.localhost:3000 → /tenant1/...).
   const { companySlug: tenantSlug } = await params;
   const tenant = await getTenantBySlug(tenantSlug);
-  const session = await getSession();
-  const user = session?.user as any;
+  const user = await getSessionUser();
   const isTenantAdmin = user?.customerOrgRole === 'TENANT_ADMIN';
 
   return (
@@ -50,11 +49,11 @@ export default async function StorefrontLayout({
                 Finansije
               </Link>
             )}
-            {session?.user ? (
+            {user ? (
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <p className="text-sm font-medium text-slate-900">{(session.user as any).name}</p>
-                  <p className="text-xs text-slate-500">{(session.user as any).email}</p>
+                  <p className="text-sm font-medium text-slate-900">{user.name}</p>
+                  <p className="text-xs text-slate-500">{user.email}</p>
                 </div>
                 <NotificationBell orderBasePath={`/${tenantSlug}/my-orders`} />
                 <SignOutButton />

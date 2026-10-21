@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/rbac';
 import CatalogClient from './CatalogClient';
 
 const KINDS = [
@@ -11,9 +11,8 @@ const KINDS = [
 ];
 
 export default async function CatalogPage() {
-  const session = await getSession();
-  const user = session?.user as any;
-  let companyId = user?.companyId as string | null;
+  const user = await getSessionUser();
+  let companyId = user?.companyId ?? null;
 
   // Superadmin has no companyId — resolve the single main company
   if (!companyId && user?.platformRole === 'SUPER_ADMIN') {

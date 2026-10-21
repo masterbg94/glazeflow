@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import type { ClientRealtimeEvent } from '@/lib/events';
+import { isClientRealtimeEvent, type ClientRealtimeEvent } from '@/lib/events';
 
 interface RealtimeContextValue {
   /** Subscribe to real-time events. Returns unsubscribe function. */
@@ -59,11 +59,13 @@ export function RealtimeProvider({
           // Skip connection confirmation message
           if (data.type === 'connected') return;
 
-          // Validate and dispatch to handlers
-          if (data.event && data.payload) {
+          // Validate with the shared type guard before dispatching. The
+          // exported guards were dead code and the inline check was weaker:
+          // it cast any payload straight into a `ClientRealtimeEvent`.
+          if (isClientRealtimeEvent(data)) {
             handlersRef.current.forEach((handler) => {
               try {
-                handler(data as ClientRealtimeEvent);
+                handler(data);
               } catch (handlerError) {
                 console.error('[RealtimeProvider] Handler error:', handlerError);
               }
