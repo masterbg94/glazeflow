@@ -83,7 +83,7 @@ into the order.
 const userRole = user.companyRole || user.platformRole;
 ```
 
-`src/lib/status-transitions.ts:74-80` then treats `userRole === 'COMPANY_ADMIN'`
+`src/lib/status-transitions.ts:89-91` then treats `userRole === 'COMPANY_ADMIN'`
 as omnipotent. Because `companyRole` is checked first, a user with
 `platformRole: COMPANY_STAFF` and `companyRole: COMPANY_ADMIN` is treated as a
 full administrator and skips the approval chain for backward moves and
@@ -135,18 +135,18 @@ exist.
 
 ### 7. Uncaught `requireRole` throws return 500, not 401/403
 
-There are 14 `requireRole` call sites. Only two wrap it:
+There are 13 `requireRole` call sites. Only 3 wrap it:
 
 - `src/app/api/tenants/route.ts:11,49`
 - `src/app/api/register/route.ts:11`
 
-The other 12 let `UnauthorizedError` / `ForbiddenError` escape the handler.
+The other 10 let `UnauthorizedError` / `ForbiddenError` escape the handler.
 Next.js turns that into a 500 with a stack trace, and the client gets an
 internal error instead of a 401 or a 403.
 
-Affected: `api/catalog`, `api/companies` (×3), `api/companies/[id]`,
+Affected: `api/catalog` (×2), `api/companies` (×1), `api/companies/[id]` (×1),
 `api/companies/[id]/users` (×2), `api/companies/[id]/users/[userId]` (×2),
-`api/admin/stats`, `api/admin/companies/[id]/stats`.
+`api/admin/stats` (×1), `api/admin/companies/[id]/stats` (×1).
 
 ### 8. `platformRole` is client-supplied on user creation
 

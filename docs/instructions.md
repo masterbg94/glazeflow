@@ -29,6 +29,15 @@ behavior. They are checked against the code; the `docs/` files are not always.
 - `ai-structure-plan.md`: how the AI skills, instructions, and knowledge base are
   organized, and why.
 
+## How to work in this folder
+
+- `agents-when-load.md`: the order in which instructions load, and what not to
+  trust without checking. Read this before touching any scoped `instructions.md`.
+- `files-here.md`: what each file in the repository contains.
+- `postgres-migration.md`: the SQLite → PostgreSQL move. Read it before any
+  change that touches `datasource`, `Decimal` handling, or the deployment
+  target.
+
 ## Product flow
 
 A tenant employee opens the storefront by tenant slug, configures a glass, PVC,

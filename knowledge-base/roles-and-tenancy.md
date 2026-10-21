@@ -154,7 +154,7 @@ const userRole = user.companyRole || user.platformRole;
 - `src/app/(company)/dashboard/orders/page.tsx:32`
 - `src/app/api/orders/transitions/[id]/route.ts:13-18` uses a related check
 
-`src/lib/status-transitions.ts:74-80` then treats `userRole === 'COMPANY_ADMIN'`
+`src/lib/status-transitions.ts:89-91` then treats `userRole === 'COMPANY_ADMIN'`
 as omnipotent. Because `companyRole` is checked first, a user with
 `platformRole: COMPANY_STAFF` and `companyRole: COMPANY_ADMIN` gets admin
 powers and skips the approval chain. See `auth-gaps.md` #4 and #5.

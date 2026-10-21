@@ -17,7 +17,7 @@ opisivao stanje pre te migracije.
 | `companyRole`     | `COMPANY_ADMIN` · `COMPANY_SALES` · `COMPANY_PRODUCTION`       | Posao osobe u glavnoj kompaniji    |
 | `customerOrgRole` | `TENANT_ADMIN` · `TENANT_MANAGER`                              | Posao osobe u tenantu              |
 
-Sva tri su opciona na `User` (`prisma/schema.prisma:118-140`).
+Sva tri su opciona na `User` (`prisma/schema.prisma:141-169`).
 
 **NEMA** `PRODUCTION_WORKER` vrednosti u enumu `CompanyRole`. Radnik iz
 `docs/BUSINESS_LOGIC_FIX.md` nije implementiran.
@@ -89,7 +89,7 @@ Admin unutar glavne kompanije. Ima `companyId` glavne kompanije.
 
 **Problem u kodu:** `src/app/api/orders/[id]/status/route.ts:13` računa
 `userRole = user.companyRole || user.platformRole`. Ako `COMPANY_STAFF` korisnik
-ima `companyRole: COMPANY_ADMIN`, `status-transitions.ts:74-80` ga tretira kao
+ima `companyRole: COMPANY_ADMIN`, `status-transitions.ts:89-91` ga tretira kao
 potpunog administratora i zaobilazi approval. Isti obrazac je u
 `src/app/(company)/dashboard/orders/page.tsx:32`.
 
@@ -125,7 +125,56 @@ osim `/finance`. `customerOrgRole` se proverava na tačno jednom mestu:
 
 ---
 
-## 6. Ključni propusti (verifikovano u kodu)
+## 6. Gde se ko loguje
+
+| Uloga            | Login URL                            | Krajnja destinacija                    |
+| ---------------- | ------------------------------------ | -------------------------------------- |
+| `SUPER_ADMIN`    | `http://localhost:3000/login`        | `/admin`                               |
+| `COMPANY_ADMIN`  | `http://localhost:3000/login`        | `/dashboard`                           |
+| `COMPANY_STAFF`  | `http://localhost:3000/login`        | `/dashboard/orders`                    |
+| `TENANT_ADMIN`   | `http://<slug>.localhost:3000/login` | `/<slug>/my-orders`, `/<slug>/finance` |
+| `TENANT_MANAGER` | `http://<slug>.localhost:3000/login` | `/<slug>/my-orders`                    |
+
+**Poddomen tenanta = `CustomerOrg.slug`, ne slug glavne kompanije.** Seed
+tenanta ima slug `bob`, pa je njegov storefront `http://bob.localhost:3000`.
+`http://acme.localhost:3000` **ne radi** — `acme` je slug glavne kompanije,
+pa taj host pada u `notFound()` iz `getTenantBySlug` (`src/lib/tenant.ts:32`).
+
+`/dashboard` i `/admin` su blokirani na poddomenima tenanta — middleware
+preusmerava na `/login` (`src/middleware.ts:34-37`).
+
+### Seed nalozi (lokalni razvoj)
+
+| Email                      | Lozinka        | Uloga                                        |
+| -------------------------- | -------------- | -------------------------------------------- |
+| `superadmin@glazeflow.app` | `Password123!` | `SUPER_ADMIN`                                |
+| `admin@acme.test`          | `Password123!` | `COMPANY_ADMIN`                              |
+| `sales@acme.test`          | `Password123!` | `COMPANY_STAFF` / `COMPANY_SALES`            |
+| `manager@acme.test`        | `Password123!` | `COMPANY_STAFF` / `COMPANY_PRODUCTION`       |
+| `bob@customers.test`       | `Password123!` | `CUSTOMER` / `TENANT_ADMIN` (tenant `bob`)   |
+| `worker@customers.test`    | `Password123!` | `CUSTOMER` / `TENANT_MANAGER` (tenant `bob`) |
+
+Lozinke su iz `prisma/seed.ts` — samo za lokalni razvoj, nikad u produkciju.
+
+---
+
+## 7. Decimal Serialization reminder
+
+Svaki Prisma `Decimal` polje koje prelazi server → client granicu mora biti
+konvertovano u string. Uzorak je u
+`src/app/(company)/dashboard/orders/[id]/page.tsx:103-104,114`:
+
+```ts
+item.unitPrice.toString();
+item.lineTotal.toString();
+order.total.toString();
+```
+
+Primeni ovaj obrazac svuda gde `Decimal` prelazi u Client Component.
+
+---
+
+## 8. Ključni propusti (verifikovano u kodu)
 
 Detaljno sa `file:line` referencama: `knowledge-base/auth-gaps.md`.
 
@@ -134,7 +183,7 @@ Detaljno sa `file:line` referencama: `knowledge-base/auth-gaps.md`.
 3. **`companyRole` i `platformRole` se spajaju** — `||` sprezanjem daje `COMPANY_STAFF` korisniku admin moći (`status/route.ts:13`).
 4. **Odobrenje tranzicije prelazi granicu tenanta** — tenant korisnik sa `companyRole: 'COMPANY_ADMIN'` može odobriti tuđu narudžbinu, jer `user.companyId` kod tenanta pokazuje na glavnu kompaniju (`transitions/[id]/route.ts:13-18`, `:34`).
 5. **`assertSameCompany()` se nikad ne poziva** — definisana je u `src/lib/rbac.ts:16`, nula poziva.
-6. **12 od 14 `requireRole` poziva nije uhvaćeno** — rezultat je 500 sa stack trace-om umesto 401/403.
+6. **10 od 13 `requireRole` poziva nije uhvaćeno** — rezultat je 500 sa stack trace-om umesto 401/403.
 7. **`POST /api/pricing/quote` je potpuno neautentifikovan** (`pricing/quote/route.ts:4-13`).
 8. **`platformRole` dolazi iz request body-a** pri kreiranju korisnika (`companies/[id]/users/route.ts:59`).
 9. **Per-tenant dodela kataloga ne postoji** — svaki tenant vidi ceo katalog. `CustomerPriceOverride` menja samo cenu.

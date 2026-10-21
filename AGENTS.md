@@ -26,7 +26,9 @@ Use instructions in this order for every task:
    - `docs/instructions.md` when touching `docs/**`
 4. Load the matching `knowledge-base/*.md` file for the area in play. The index
    is `knowledge-base/README.md`; it maps each kind of question to a file. Load
-   only what the task needs — do not preload the whole base.
+   only what the task needs — do not preload the whole base. If the change
+   touches the database provider, `Decimal` handling, or the deployment
+   target, also load `docs/postgres-migration.md`.
 5. If one change spans multiple scopes, load every matching scoped file before
    editing. More specific scoped rules supplement root rules; they do not replace
    them.
@@ -45,8 +47,8 @@ task (`glazeflow-tenant-guard`, `glazeflow-role-check`, `glazeflow-pricing-chang
 
 ### 1. Prisma `companyId` null errors
 
-**Location**: `src/app/(company)/dashboard/page.tsx:7`, `src/app/(company)/dashboard/orders/page.tsx:7`
-**Cause**: SUPER_ADMIN user (seed line 10-18) has no `companyId`. Session returns `companyId: null`. Prisma queries fail with `Argument companyId must not be null`.
+**Location**: `src/app/(company)/dashboard/page.tsx:9`, `src/app/(company)/dashboard/orders/page.tsx:10`
+**Cause**: SUPER_ADMIN user (seed `prisma/seed.ts:9-18`) has no `companyId`. Session returns `companyId: null`. Prisma queries fail with `Argument companyId must not be null`.
 **Fix**: Guard queries — redirect if `!companyId`, or scope to platform admin view. Example:
 
 ```ts
@@ -153,7 +155,7 @@ be hit by a change:
   user's `companyId` is the main company, so a `companyId` comparison passes for
   every tenant's order.
 - `assertSameCompany()` exists in `src/lib/rbac.ts` but is never called.
-- 12 of 14 `requireRole` call sites let the throw escape → 500 instead of 401/403.
+- 10 of 13 `requireRole` call sites let the throw escape → 500 instead of 401/403.
   Always wrap with `toHttpError`.
 
 ---
@@ -204,12 +206,59 @@ No test suite configured. Verify manually:
 2. `npm run dev`
 3. Login as `admin@acme.test` / `Password123!` → dashboard loads (companyId present)
 4. Login as `superadmin@glazeflow.app` / `Password123!` → should redirect or show admin view (companyId null)
-5. Check `/dashboard/orders/[id]` — Decimal fields render as strings, no console errors
+5. Login as `bob@customers.test` / `Password123!` at `http://bob.localhost:3000` → tenant storefront loads
+6. Check `/dashboard/orders/[id]` — Decimal fields render as strings, no console errors
+
+Full seed credential table: `docs/roles.md` § 6.
 
 ---
 
 ## Environment
 
 - `.env` contains `DATABASE_URL="file:./dev.db"`, `NEXTAUTH_SECRET`
-- Dev runs on `localhost:3000` + `acme.localhost:3000` (storefront via middleware)
+- **The live dev database is `prisma/dev.db`.** `file:./dev.db` resolves
+  relative to `prisma/`, not the repo root. A zero-byte `dev.db` also sits in
+  the root — `sqlite3 dev.db` from the root opens the wrong, empty file.
+- Dev runs on `localhost:3000`. Tenant storefronts are at
+  `http://<tenant-slug>.localhost:3000` — the slug comes from `CustomerOrg.slug`
+  (seed tenant: `bob`, so `http://bob.localhost:3000`).
+  **`http://acme.localhost:3000` does not work** — `acme` is the main company's
+  slug, not a tenant, and that host returns 404.
 - Add new dev origins to `next.config.ts` → `allowedDevOrigins`
+
+## Database: SQLite today, PostgreSQL in production
+
+The schema runs on **SQLite** in development (`prisma/schema.prisma:7`). The
+product documentation names PostgreSQL (Neon or Supabase) as the production
+target. The move is **not started**.
+
+Before touching `datasource`, `Decimal` handling, or the deployment target,
+read **`docs/postgres-migration.md`**. The short version: Prisma enums become
+native Postgres enums, and **SQLite does not enforce foreign keys by default**
+(`PRAGMA foreign_keys` is `0` on the dev database), so existing data can contain
+orphans that Postgres will reject on the first write.
+
+## MCP servers
+
+Two servers are configured in `.mcp.json` (and mirrored in `.vscode/.mcp.json`):
+
+| Server          | Transport | Endpoint                                                     |
+| --------------- | --------- | ------------------------------------------------------------ |
+| `supabase`      | HTTP      | `http://127.0.0.1:54321/mcp` — the local Supabase stack      |
+| `next-devtools` | stdio     | `npx -y next-devtools-mcp@latest` — Vercel's official server |
+
+**`next-devtools`** talks to the running dev server. `nextjs_index` discovers
+the server and its tools; `nextjs_call` invokes them. `get_errors` returns
+config and session errors; `get_routes` maps the App Router; `get_logs` returns
+the dev log path. `get_request_insights` needs
+`experimental.requestInsights = true` in `next.config.ts` plus a dev restart —
+it is **off by default**, and the flag exists in Next 16.3.3
+(`node_modules/next/dist/server/config-schema.js`).
+
+**`supabase`** points at the **local** stack, not a hosted project. Verify with
+`get_project_url` before running `apply_migration` — it writes to whatever it
+is pointed at. The local Postgres has **zero tables in `public`**; the app runs
+on SQLite, so these tools see a different database than the application does.
+The stack is managed with the Supabase CLI (`supabase start`, `supabase stop`,
+`supabase status`); `supabase/config.toml` does not exist yet, so
+`supabase init` has never been run in this repo.

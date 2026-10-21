@@ -3,12 +3,12 @@ import { getServerSession, NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { prisma } from './prisma';
 
-// On localhost dev (including subdomains like acme.localhost) the cookie must be
-// host-only: Chromium rejects Set-Cookie with Domain=.localhost for subdomains of
-// the public-suffix "localhost", so a Domain cookie would never be stored and the
-// session would be dropped on every subdomain. A Domain attribute is only set in
-// real deployments (NEXTAUTH_URL with a public host), so the session is shared
-// across company subdomains in production.
+// On localhost dev (including tenant subdomains like bob.localhost) the cookie
+// must be host-only: Chromium rejects Set-Cookie with Domain=.localhost for
+// subdomains of the public-suffix "localhost", so a Domain cookie would never be
+// stored and the session would be dropped on every subdomain. A Domain attribute
+// is only set in real deployments (NEXTAUTH_URL with a public host), so the
+// session is shared across company subdomains in production.
 const isLocalhost = (process.env.NEXTAUTH_URL || 'http://localhost:3000').includes('localhost');
 const sessionCookieDomain = isLocalhost
   ? undefined

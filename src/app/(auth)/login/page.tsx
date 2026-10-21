@@ -4,7 +4,7 @@ import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
-// Customers sign in from their company storefront (e.g. acme.localhost:3000)
+// Customers sign in from their company storefront (e.g. bob.localhost:3000)
 // and must land on /<slug>/my-orders — /dashboard is a company-staff route that
 // does not exist under the storefront and 404s on a subdomain host. Root host
 // (localhost:3000) keeps the default /dashboard target.

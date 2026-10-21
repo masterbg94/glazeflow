@@ -97,7 +97,7 @@ at order creation. The tenant sees the real total at submit time.
 | `customerOrgRole` enforced in one place only | `finance/page.tsx:20` |
 | `PRODUCTION_WORKER` role does not exist in the schema | `prisma/schema.prisma` |
 | `assertSameCompany` has zero call sites | `src/lib/rbac.ts:16` |
-| 12 of 14 `requireRole` calls are uncaught → 500 not 401/403 | `src/app/api/**` |
+| 10 of 13 `requireRole` calls are uncaught → 500 not 401/403 | `src/app/api/**` |
 | `POST /api/pricing/quote` is unauthenticated | `src/app/api/pricing/quote/route.ts:4` |
 | `GET /api/orders` leaks all orders without an org id | `src/app/api/orders/route.ts:11` |
 | Order items can reference another company's catalog | `src/app/api/orders/route.ts:88` |

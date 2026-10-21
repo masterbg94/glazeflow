@@ -77,7 +77,7 @@ mostly checks `platformRole`.
 places merge it with `platformRole` into one string —
 `src/app/api/orders/[id]/status/route.ts:13` and
 `src/app/(company)/dashboard/orders/page.tsx:32` — and
-`src/lib/status-transitions.ts:74-80` treats that merged value of
+`src/lib/status-transitions.ts:89-91` treats that merged value of
 `COMPANY_ADMIN` as omnipotent. A `COMPANY_STAFF` user holding
 `companyRole: COMPANY_ADMIN` therefore skips the approval chain.
 

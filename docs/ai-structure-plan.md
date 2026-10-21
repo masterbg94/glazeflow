@@ -73,7 +73,7 @@ Intended combinations, and what the code actually enforces:
 | `CUSTOMER`      | `null`               | `TENANT_ADMIN`    | Order, track, finance                                |
 | `CUSTOMER`      | `null`               | `TENANT_MANAGER`  | Order, track — finance blocked                       |
 
-`companyRole` is **not** consistently enforced. `src/lib/status-transitions.ts:74-80`
+`companyRole` is **not** consistently enforced. `src/lib/status-transitions.ts:89-91`
 treats a `userRole` of `COMPANY_ADMIN` as omnipotent, and two API routes compute
 `userRole = user.companyRole || user.platformRole`
 (`src/app/api/orders/[id]/status/route.ts:13`,
@@ -176,7 +176,7 @@ Verified, ordered by severity. Each is a real hole in the current code.
    `src/app/api/orders/[id]/status/route.ts:13` and
    `src/app/(company)/dashboard/orders/page.tsx:32`. A `COMPANY_STAFF` user with
    `companyRole: COMPANY_ADMIN` is treated as omnipotent by
-   `src/lib/status-transitions.ts:74-80` and skips the approval chain.
+   `src/lib/status-transitions.ts:89-91` and skips the approval chain.
 5. **Cross-tenant approval is possible.**
    `src/app/api/orders/transitions/[id]/route.ts:13-18` grants the gate on
    `companyRole === 'COMPANY_ADMIN'`, but the tenant check at line 34 compares
@@ -187,9 +187,9 @@ Verified, ordered by severity. Each is a real hole in the current code.
 6. **`assertSameCompany` is never called.** It is defined at
    `src/lib/rbac.ts:16` and has zero call sites.
 7. **Unhandled `requireRole` throws produce 500, not 401/403.** Only
-   `src/app/api/tenants/route.ts` and `src/app/api/register/route.ts` wrap in
-   `try/catch` + `toHttpError`. The other 12 `requireRole` calls throw uncaught,
-   leaking a stack trace.
+   `src/app/api/tenants/route.ts` (2 call sites) and
+   `src/app/api/register/route.ts` wrap in `try/catch` + `toHttpError`. The
+   other 10 of 13 `requireRole` calls throw uncaught, leaking a stack trace.
 8. **`platformRole` is client-supplied on user creation.**
    `src/app/api/companies/[id]/users/route.ts:59` takes `platformRole` from the
    request body, defaulting to `COMPANY_ADMIN`. SUPER_ADMIN-gated, so it is an
@@ -286,6 +286,8 @@ how to verify. They load on demand, so they cost nothing until they are needed.
 
 ## 9. Documentation corrections made
 
+### Round 1 — the original restructuring
+
 | File                               | Correction                                                                                                                       |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `docs/instructions.md`             | `QUOTE_REVISION` → `QUOTE_AMENDMENT`                                                                                             |
@@ -294,8 +296,29 @@ how to verify. They load on demand, so they cost nothing until they are needed.
 | `docs/how-app-works-with-roles.md` | Marked the storefront catalog as unfiltered; noted `/register` UI is closed                                                      |
 | `docs/Business Logic.md`           | Left as the original product vision; a header now marks it as intent, not implementation                                         |
 | `docs/files-here.md`               | Rewritten as an accurate index                                                                                                   |
-| `docs/koje-instrukcije-kada.md`    | Folded into `docs/agents-when-load.md`; removed the duplicate Serbian walkthrough that had drifted                               |
-| `docs/prompt-shorten-logic.md`     | Kept as the raw business brief, marked as a source document, not a spec                                                          |
+
+### Round 2 — cleanup, 2026-10-21
+
+The first round did not finish. Four files were left behind: one that declared
+itself obsolete, one whose plan had been fully implemented, one that contained
+**invented roles and statuses**, and one that duplicated `roles.md`. They have
+now been removed, and the surviving files were re-verified against the code.
+
+| File                               | Action                                                                                                                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `docs/koje-instrukcije-kada.md`    | **Deleted.** Duplicated `docs/agents-when-load.md`; its own header already declared it partially obsolete.                                                                     |
+| `docs/improve-admin.md`            | **Deleted.** The plan was fully implemented — `/api/admin/stats` and all 7 components in `src/components/admin/` exist.                                                        |
+| `docs/prompt-shorten-logic.md`     | **Deleted.** A raw business brief that named a `production_line_worker` role, five non-existent order statuses, and an email address that is not in the database.              |
+| `docs/roles-how-and-where.md`      | **Deleted.** Duplicated `docs/roles.md`; its three unique pieces (login URLs per role, the tenant-subdomain rule, the Decimal reminder) were moved into `docs/roles.md` § 6-7. |
+| `docs/roles.md`                    | Fixed the `User` model reference (`118-140` → `141-169`); added § 6 "Gde se ko loguje" and § 7 "Decimal Serialization reminder".                                               |
+| `docs/how-app-works-with-roles.md` | Corrected § 3: `/admin` creates **tenants**, not companies. Corrected § 5: noted that `POST /api/register` has no UI caller.                                                   |
+| `docs/improvements.md`             | Rewritten. Removed two false claims (`orderNumber` was already `@unique`; the glass pane price calculation is not buggy) and added the current-state table.                    |
+| `docs/files-here.md`               | Rebuilt with the real file list, a status column, and a table of the removed files.                                                                                            |
+| `docs/BUSINESS_LOGIC_FIX.md`       | Added a status banner marking it as an executed migration, and struck the `PRODUCTION_WORKER` role.                                                                            |
+| `knowledge-base/*.md`              | Fixed the `status-transitions.ts:74-80` reference → `:89-91` in 3 files (`roles-and-tenancy.md`, `auth-gaps.md`, `roles-explanation.md`).                                      |
+| `docs/agents-when-load.md`         | Added the `docs/postgres-migration.md` entry and the `next-devtools` MCP note.                                                                                                 |
+| `AGENTS.md`                        | Added an MCP section, the `experimental.requestInsights` note, and the SQLite/PostgreSQL pointer.                                                                              |
+| `knowledge-base/api-map.md`        | Added the note that the middleware does not guard `/api` paths.                                                                                                                |
 
 ## 10. Verification
 

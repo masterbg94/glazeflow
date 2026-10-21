@@ -71,3 +71,37 @@ je verzija tačna.
 - `QUOTE_REVISION` — enum je `QUOTE_AMENDMENT`
 - "svaki tenant vidi svoj katalog" — per-tenant dodele ne postoje, svi vide ceo
 - `npm run lint` — pokvaren, `next lint` je uklonjen u Next.js 16
+- `acme.localhost:3000` — to nije tenant. Poddomen tenanta je `CustomerOrg.slug`
+  (seed: `bob`, pa `bob.localhost:3000`). `acme` je slug glavne kompanije i
+  taj host vraća 404
+- "kreiranje kompanije" na `/admin` — ne postoji. Forma pravi **tenanta**
+  (`CustomerOrg`). `POST /api/companies` je blokiran sa 403
+- `dev.db` u korenu repozitorijuma — prazna je. Prava baza je `prisma/dev.db`
+
+## Baza podataka
+
+Danas SQLite (`prisma/schema.prisma:7`), produkcija je predviđena kao
+PostgreSQL. **Prelazak nije započet.** Ako promena dodiruje `datasource`,
+`Decimal` obradu ili deployment target, učitaj `docs/postgres-migration.md`
+pre nego što pišeš kod.
+
+Ključna razlika: SQLite **ne enforcing-uje strane ključeve** po defaultu
+(`PRAGMA foreign_keys` je `0` na dev bazi), pa postojeći podaci mogu imati
+"osince" koje Postgres odbija pri prvom upisu.
+
+## MCP serveri
+
+`.mcp.json` (i `.vscode/.mcp.json`) definišu dva servera:
+
+| Server          | Endpoint                          | Za šta                                   |
+| --------------- | --------------------------------- | ---------------------------------------- |
+| `supabase`      | `http://127.0.0.1:54321/mcp`      | lokalni Supabase stack                   |
+| `next-devtools` | `npx -y next-devtools-mcp@latest` | Vercel-ov devtools za running dev server |
+
+`nextjs_index` otkriva server i njegove alate, `nextjs_call` ih poziva.
+`get_request_insights` zahteva `experimental.requestInsights = true` u
+`next.config.ts` + restart dev servera — podrazumevano je **isključeno**.
+
+Supabase MCP gleda **lokalni** stack, ne hosted projekat. Proveri
+`get_project_url` pre `apply_migration`. Lokalni Postgres ima **0 tabela** u
+`public` šemi — app radi na SQLite, pa ovi alati vide drugu bazu od aplikacije.

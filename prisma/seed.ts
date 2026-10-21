@@ -328,7 +328,9 @@ async function main() {
   console.log('Super admin : superadmin@glazeflow.app / Password123!');
   console.log('Dobavljač    : admin@acme.test / Password123!');
   console.log('Kupac        : bob@customers.test / Password123!');
-  console.log('Prodavnica   : http://acme.localhost:3000');
+  // The storefront host is the TENANT slug (CustomerOrg.slug), not the main
+  // company's slug — 'acme' is the main company and resolves to a 404.
+  console.log('Prodavnica   : http://bob.localhost:3000');
 }
 
 main().finally(() => prisma.$disconnect());

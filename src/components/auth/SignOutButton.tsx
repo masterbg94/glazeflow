@@ -7,8 +7,9 @@ import { signOut } from 'next-auth/react';
  * client — because it is itself a client component.
  *
  * The callbackUrl is derived from the current hostname so a customer signing
- * out from acme.localhost:3000 lands back on /login (served under the
- * storefront), while a staff member on localhost:3000 lands on /login too.
+ * out from a tenant storefront (e.g. bob.localhost:3000) lands back on /login
+ * (served under the storefront), while a staff member on localhost:3000 lands
+ * on /login too.
  */
 export function SignOutButton() {
   return (

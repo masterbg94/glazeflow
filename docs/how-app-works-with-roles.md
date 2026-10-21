@@ -52,10 +52,13 @@ Admin kompanije upravlja katalogom i narudžbinama:
 
 Super admin ima pristup na `/admin` panel:
 
-- **Kreiranje kompanija** — forme za novu kompaniju (naziv, slug, boje, valuta, porez, markup)
-- **Pregled svih kompanija** — tabela sa brojem korisnika i narudžbina po kompaniji
-- **Upravljanje korisnicima** — u detaljima kompanije može dodavati, brisati i menjati status korisnika (aktivan/neaktivan)
+- **Kreiranje tenanta** — forma "Dodaj tenant" (naziv firme, slug/poddomen, PIB, adresa, popust na cenovnik). Slanje ide na `POST /api/tenants`, ne na `/api/companies`
+- **Pregled kompanija i tenanata** — tabela sa brojem korisnika, narudžbina i veličine kataloga, sa mogućnošću proširenja reda
+- **Statistike platforme** — `/api/admin/stats`: ukupno kompanija, tenanata, korisnika, narudžbina, prihoda, raspodela po statusu i po ulozi
+- **Upravljanje korisnicima** — u detaljima kompanije ili tenanta može dodavati, brisati i menjati status korisnika (aktivan/neaktivan)
 - **Vidi sve narudžbine** — bez ograničenja na kompaniju
+
+> **Ne postoji kreiranje nove `Company` kompanije.** Model je "jedna glavna kompanija"; `POST /api/companies` vraća 403. Forma na `/admin` pravi **tenanta** (`CustomerOrg`), ne `Company` red.
 
 ---
 
@@ -76,11 +79,13 @@ Cene se zatim koriste u wizardu koji automatski račini **živu cenu** na osnovu
 
 ### **5. Kako dodati kupca**
 
-**Samo admin glavne kompanije (ili super admin) pravi korisnike.** Samoregistracija ne postoji.
+**Samoregistracija ne postoji.** `/register` UI je zatvoren ("Registracija zatvorena", `src/app/(auth)/register/page.tsx:5`). Nalog pravi super admin.
 
-**A. Super admin dodaje korisnika** — na stranici `/admin/companies/[id]` pritisće dugme **"Dodaj korisnika"** i unosi email, ime, lozinku i ulogu. Za tenant korisnika se bira `TENANT_ADMIN` ili `TENANT_MANAGER`; za korisnika glavne kompanije `COMPANY_ADMIN` / `COMPANY_SALES` / `COMPANY_PRODUCTION`.
+**A. Super admin dodaje korisnika** — na stranici `/admin/companies/[id]` (ista ruta za kompaniju i tenanta; entitet se bira iz tabele "Entiteti (Kompanije i Tenanti)") pritisće dugme **"Dodaj korisnika"** i unosi email, ime, lozinku i ulogu. Za tenant korisnika se bira `TENANT_ADMIN` ili `TENANT_MANAGER`; za korisnika glavne kompanije `COMPANY_ADMIN` / `COMPANY_SALES` / `COMPANY_PRODUCTION`.
 
-**B. Tenant se kreira odvojeno** — `POST /api/tenants` pravi `CustomerOrg` + `PriceList`. Samo main company admin i super admin mogu. `POST /api/companies` je blokiran sa 403.
+**B. Tenant se kreira odvojeno** — `POST /api/tenants` pravi `CustomerOrg` + `PriceList`. Dozvoljeno za `SUPER_ADMIN` i main-company `COMPANY_ADMIN`. `POST /api/companies` je blokiran sa 403.
+
+> **API vs. UI.** `POST /api/register` dozvoljava i `COMPANY_ADMIN`, ali **nijedan UI ga ne poziva** — nema ekrana na `/dashboard` za dodavanje korisnika tenanta. Trenutno jedini način da se kreira korisnik je super admin kroz `/admin`. API putanja je namerno otvorena za main company admina i može se koristiti programski.
 
 ---
 

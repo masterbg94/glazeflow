@@ -1,5 +1,25 @@
 # GlazeFlow Business Logic Fix — One Supplier, Many Tenants
 
+> **Status: executed migration. This document is a historical record of the
+> change, not a specification of current behavior.**
+>
+> The business model below **was** implemented and still holds: one main
+> company, tenants as `CustomerOrg` rows, tenant ordering only.
+>
+> **Two things in this document are not implemented and must not be written
+> about as if they were:**
+>
+> - **`PRODUCTION_WORKER` does not exist.** The `CompanyRole` enum has exactly
+>   three values: `COMPANY_ADMIN`, `COMPANY_SALES`, `COMPANY_PRODUCTION`
+>   (`prisma/schema.prisma:18-22`). The "Worker" row below was dropped. The
+>   `COMPANY_PRODUCTION` and `COMPANY_SALES` roles are currently identical in
+>   the transition rules (`src/lib/status-transitions.ts:121-147`).
+> - **Per-tenant catalog assignment does not exist.** Every tenant sees the
+>   whole main-company catalog; only prices differ. See
+>   `knowledge-base/roles-and-tenancy.md` § "What is not implemented".
+>
+> For current behavior, read `knowledge-base/`.
+
 ## Confirmed Business Model
 
 - Exactly **ONE main company** (supplier/producer), e.g. `www.dubing.rs`.
@@ -14,12 +34,12 @@
 
 ### Main company (www.dubing.rs)
 
-| Role                   | platformRole    | companyRole          | Powers                                                              |
-| ---------------------- | --------------- | -------------------- | ------------------------------------------------------------------- |
-| Superadmin (developer) | `SUPER_ADMIN`   | —                    | Full access incl. logs, all companies, debugging                    |
-| Admin                  | `COMPANY_ADMIN` | `COMPANY_ADMIN`      | Everything incl. catalog/price lists/tenants                        |
-| Manager                | `COMPANY_STAFF` | `COMPANY_PRODUCTION` | Orders, statuses (backward needs admin approval), no catalog prices |
-| Worker                 | `COMPANY_STAFF` | `PRODUCTION_WORKER`  | Only order status forward                                           |
+| Role                   | platformRole    | companyRole             | Powers                                                              |
+| ---------------------- | --------------- | ----------------------- | ------------------------------------------------------------------- |
+| Superadmin (developer) | `SUPER_ADMIN`   | —                       | Full access incl. logs, all companies, debugging                    |
+| Admin                  | `COMPANY_ADMIN` | `COMPANY_ADMIN`         | Everything incl. catalog/price lists/tenants                        |
+| Manager                | `COMPANY_STAFF` | `COMPANY_PRODUCTION`    | Orders, statuses (backward needs admin approval), no catalog prices |
+| ~~Worker~~             | `COMPANY_STAFF` | ~~`PRODUCTION_WORKER`~~ | **Not implemented** — no such enum value exists                     |
 
 ### Tenant (tenant1.dubing.rs)
 
@@ -107,8 +127,9 @@ enum PaymentStatus {
 }
 ```
 
-`CompanyRole`: keep `COMPANY_ADMIN`, `PRODUCTION_WORKER`, `COMPANY_PRODUCTION`
-(manager). `COMPANY_SALES` unused — keep for compat or drop later.
+`CompanyRole`: keep `COMPANY_ADMIN`, `COMPANY_PRODUCTION` (manager),
+`COMPANY_SALES`. **`PRODUCTION_WORKER` was dropped** — it never reached the
+schema (`prisma/schema.prisma:18-22`).
 
 ---
 

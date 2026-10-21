@@ -4,6 +4,16 @@ Every route handler in `src/app/api/`. Auth column names the gate as written in
 code — read the file before trusting this table, and read `auth-gaps.md` for the
 holes.
 
+> **The middleware does not guard any of these routes.**
+> `src/middleware.ts:28-30` returns `NextResponse.next()` for every path that
+> starts with `/api` or `/_next`. The middleware is a navigation helper for the
+> tenant-subdomain rewrite and the `/dashboard` / `/admin` redirect — it is
+> **not** an authorization layer.
+>
+> Consequence: the Auth column below is the **only** boundary for each route.
+> A route with no `requireRole` and no manual session check is genuinely open,
+> which is exactly the case of `api/pricing/quote` (see `auth-gaps.md` #1).
+
 ## Platform and tenancy
 
 | Route                                        | Methods   | Auth                                                                   | Does                                                                                                                                     |
@@ -74,8 +84,8 @@ Established by the existing handlers:
 
 1. `getSession()` first, then `session.user as any` to reach the custom claims.
 2. `requireRole([...])` for the role gate; wrap it in `try/catch` and call
-   `toHttpError(err)` — this is what `/api/tenants` and `/api/register` do and
-   what the other 12 call sites fail to do.
+   `toHttpError(err)` — this is what `/api/tenants` (×2) and `/api/register` do
+   and what the other 10 call sites fail to do.
 3. Derive `companyId` and `customerOrgId` from the session. Never trust the
    request body.
 4. Validate and normalize the body before touching Prisma.
