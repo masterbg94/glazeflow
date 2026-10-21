@@ -1,5 +1,19 @@
 # GlazeFlow V2 — Multi-Tenant B2B Glass & PVC Ordering Platform
 
+> **Status: product intent, not implementation.** This is the original vision
+> document that shaped the app. Where it disagrees with the code, the code wins.
+>
+> Two things it describes are **not** implemented:
+>
+> - **Per-tenant catalog assignment.** The vision says a customer sees only what
+>   the supplier assigned. The code gives every tenant the whole catalog; only
+>   prices differ. See `knowledge-base/roles-and-tenancy.md`.
+> - **Multiple supplier companies** ("many large manufacturer companies", §0).
+>   The code has exactly one main company by design — `docs/BUSINESS_LOGIC_FIX.md`
+>   reversed this deliberately.
+>
+> For verified current behavior, read `knowledge-base/`.
+
 ## 0. Executive Summary
 
 We are building a **B2B ordering bridge** between:

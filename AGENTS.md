@@ -24,9 +24,9 @@ Use instructions in this order for every task:
    - `src/lib/instructions.md` when touching `src/lib/**`
    - `prisma/instructions.md` when touching `prisma/**`
    - `docs/instructions.md` when touching `docs/**`
-4. For role, product, or architecture questions, also load the relevant
-   `knowledge-base/*.md` file. Start with `knowledge-base/roles-explanation.md`
-   for questions about `platformRole` and `companyRole`.
+4. Load the matching `knowledge-base/*.md` file for the area in play. The index
+   is `knowledge-base/README.md`; it maps each kind of question to a file. Load
+   only what the task needs — do not preload the whole base.
 5. If one change spans multiple scopes, load every matching scoped file before
    editing. More specific scoped rules supplement root rules; they do not replace
    them.
@@ -36,7 +36,10 @@ Use instructions in this order for every task:
 
 Do not treat `.agents/skills/**` as GlazeFlow application instructions. Those files
 define optional agent skills, such as communication style, and are loaded only when
-the agent runtime activates the matching skill.
+the agent runtime activates the matching skill. The GlazeFlow-specific skills are
+listed in `knowledge-base/README.md` — load the one whose description matches the
+task (`glazeflow-tenant-guard`, `glazeflow-role-check`, `glazeflow-pricing-change`,
+`glazeflow-schema-change`, `glazeflow-order-flow`, `glazeflow-onboard`).
 
 ## Critical Issues (from terminal log)
 
@@ -55,7 +58,7 @@ if (!companyId) redirect('/admin'); // or return empty state
 
 **Error**: `Only plain objects can be passed to Client Components from Server Components. Decimal objects are not supported.`
 **Affected fields** (from schema): `Order.subtotal`, `taxAmount`, `discountAmount`, `total`; `OrderItem.lengthM`, `unitPrice`, `lineTotal`; catalog pricing fields.
-**Fix**: Serialize Decimal → string/number before passing to client components. Pattern in `src/app/(company)/dashboard/orders/[id]/page.tsx:105-106`:
+**Fix**: Serialize Decimal → string/number before passing to client components. Pattern in `src/app/(company)/dashboard/orders/[id]/page.tsx:103-104`:
 
 ```ts
 {
@@ -98,9 +101,17 @@ const nextConfig: NextConfig = {
 | DB push (schema → sqlite)        | `npm run db:push`      |
 | Seed DB                          | `npm run db:seed`      |
 | Prisma Studio                    | `npm run db:studio`    |
-| Lint                             | `npm run lint`         |
 | Format check                     | `npm run format:check` |
 | Format write                     | `npm run format`       |
+
+`npm run lint` is **broken** — `next lint` was removed in Next.js 16 and the
+script still calls it (`package.json:16`). It fails with
+`Invalid project directory provided, no such directory: .../lint`. Use
+`npm run build` for type checking. Fix the script or drop it; do not report a
+lint run as passing.
+
+There is no test suite configured. Verification is `npm run build` plus a manual
+check of the changed path.
 
 ---
 
@@ -114,12 +125,36 @@ const nextConfig: NextConfig = {
   rows with `slug` (subdomain), `priceListId`, and `CustomerPriceOverride[]`.
   Never create a second `Company` row. Tenant creation goes through `/api/tenants`
   (SUPER_ADMIN / main COMPANY_ADMIN), never `/api/companies` POST (blocked).
-- **Roles**: main company — `COMPANY_ADMIN` / `COMPANY_PRODUCTION` (manager) /
-  `PRODUCTION_WORKER` (status forward only). Tenant users: `platformRole=CUSTOMER`
-  + `customerOrgRole` = `TENANT_ADMIN` (sees `/finance`) or `TENANT_MANAGER`.
+- **Roles**: main company — `platformRole` `COMPANY_ADMIN` / `COMPANY_STAFF`, with
+  `companyRole` `COMPANY_ADMIN` / `COMPANY_SALES` / `COMPANY_PRODUCTION`. There is
+  **no `PRODUCTION_WORKER`** value in the schema. Tenant users: `platformRole=CUSTOMER`
+  - `customerOrgRole` = `TENANT_ADMIN` (sees `/finance`) or `TENANT_MANAGER`.
+    `customerOrgRole` is enforced in exactly one place today — the finance page.
 - **Tenant subdomains**: middleware rewrites `X.ROOT` → `/X/...` (tenant storefront).
   `/dashboard` and `/admin` are blocked on tenant subdomains.
 - **Route groups**: `(company)` = main company dashboard, `(storefront)` = tenant portal, `(auth)` = login (register UI is closed), `(platform)` = super-admin
+- **Legacy flag**: `Company.isProducer` is superseded by `isMainCompany` but is still
+  read at `src/app/(company)/dashboard/layout.tsx:15-27` to decide the sidebar catalog
+  link. The seed sets both, so it works by accident. Prefer `isMainCompany`.
+
+## Security gaps to know before editing auth
+
+Full list with file:line in `knowledge-base/auth-gaps.md`. The ones most likely to
+be hit by a change:
+
+- `POST /api/pricing/quote` has **no** session check at all.
+- `GET /api/orders` builds `where` from a possibly-undefined id; Prisma drops the
+  key and the query returns **every order**.
+- Order creation looks up catalog rows by bare id — no `companyId`, no `isActive`
+  filter.
+- `userRole = user.companyRole || user.platformRole` merges two enums; a
+  `COMPANY_STAFF` user holding `companyRole: COMPANY_ADMIN` bypasses approval.
+- Tenant scope must compare `order.customerOrgId === user.customerOrgId`. A tenant
+  user's `companyId` is the main company, so a `companyId` comparison passes for
+  every tenant's order.
+- `assertSameCompany()` exists in `src/lib/rbac.ts` but is never called.
+- 12 of 14 `requireRole` call sites let the throw escape → 500 instead of 401/403.
+  Always wrap with `toHttpError`.
 
 ---
 
@@ -131,6 +166,8 @@ const nextConfig: NextConfig = {
 - SUPER_ADMIN has `companyId: null` — handle explicitly in `(company)` routes
 - Order creation NEVER trusts client `companyId`; it is derived from session `customerOrgId`
 - `requireRole` throws; map with `toHttpError` from `src/lib/rbac.ts` in route handlers
+- Never merge `companyRole` and `platformRole` into one variable — check the
+  dimension the rule belongs to (`knowledge-base/roles-and-tenancy.md`)
 
 ---
 
