@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation';
 import { StatCard } from '@/components/dashboard/StatCard';
-import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/rbac';
 
 export default async function DashboardHome() {
-  const session = await getSession();
-  const companyId = (session?.user as any).companyId;
+  const user = await getSessionUser();
+  const companyId = user?.companyId;
   if (!companyId) redirect('/admin');
 
   const [orders, totalOrders, newOrders, totalRevenue] = await Promise.all([
@@ -20,7 +20,7 @@ export default async function DashboardHome() {
     prisma.order.aggregate({ where: { companyId }, _sum: { total: true } }),
   ]);
 
-  const serializedOrders = orders.map(o => ({
+  const serializedOrders = orders.map((o) => ({
     ...o,
     subtotal: o.subtotal.toString(),
     taxAmount: o.taxAmount.toString(),

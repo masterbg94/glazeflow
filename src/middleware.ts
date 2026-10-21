@@ -11,29 +11,46 @@ export async function middleware(req: NextRequest) {
   const path = url.pathname;
 
   const hostOnly = hostname.split(':')[0];
-  const cleanHost = hostOnly.replace(`.${ROOT_HOST}`, '').replace(ROOT_HOST, '');
-  const isRoot = hostOnly === ROOT_HOST || hostOnly === `www.${ROOT_HOST}` || hostOnly === 'localhost' || hostOnly === '127.0.0.1';
+  const isRoot =
+    hostOnly === ROOT_HOST ||
+    hostOnly === `www.${ROOT_HOST}` ||
+    hostOnly === 'localhost' ||
+    hostOnly === '127.0.0.1';
+  // A suffix check, not a substring replace. `replace` treated any host
+  // containing the root host as a tenant subdomain.
+  const isTenantSubdomain =
+    !isRoot && hostOnly.endsWith(`.${ROOT_HOST}`) && hostOnly.length > ROOT_HOST.length + 1;
+  const subdomain = isTenantSubdomain ? hostOnly.slice(0, -(ROOT_HOST.length + 1)) : '';
 
-  // Allow auth routes without subdomain rewriting
-  if (path.startsWith('/login') || path.startsWith('/register') || path.startsWith('/(auth)')) {
-    if (isRoot) return NextResponse.next();
+  // API + static: never rewrite
+  if (path.startsWith('/_next') || path.startsWith('/api')) {
     return NextResponse.next();
   }
 
-  if (
-    !isRoot &&
-    cleanHost &&
-    cleanHost !== ROOT_HOST &&
-    !path.startsWith('/_next') &&
-    !path.startsWith('/api') &&
-    !path.startsWith('/login') &&
-    !path.startsWith('/register') &&
-    !path.startsWith('/dashboard') &&
-    !path.startsWith('/admin') &&
-    !path.startsWith(`/${cleanHost}`)
-  ) {
-    const rewritePath = path === '/' ? `/${cleanHost}` : `/${cleanHost}${path}`;
-    return NextResponse.rewrite(new URL(rewritePath, req.url));
+  // Auth routes allowed everywhere (single login for root and tenants)
+  if (path.startsWith('/login') || path.startsWith('/register') || path.startsWith('/(auth)')) {
+    return NextResponse.next();
+  }
+
+  // An unknown host is not a tenant of this platform. The old substring
+  // replace sent it to the storefront, which then 404'd on the slug. Answering
+  // 404 here keeps the routing decision in one place.
+  const isKnownHost = isRoot || isTenantSubdomain;
+  if (!isKnownHost) {
+    return new NextResponse('Not Found', { status: 404 });
+  }
+
+  if (isTenantSubdomain) {
+    // Main-company areas are forbidden on tenant subdomains
+    if (path.startsWith('/dashboard') || path.startsWith('/admin')) {
+      const loginUrl = new URL('/login', `http://${ROOT}`);
+      return NextResponse.redirect(loginUrl);
+    }
+    // Rewrite tenant subdomain to tenant storefront: /foo -> /<tenantSlug>/foo
+    if (!path.startsWith(`/${subdomain}`)) {
+      const rewritePath = path === '/' ? `/${subdomain}` : `/${subdomain}${path}`;
+      return NextResponse.rewrite(new URL(rewritePath, req.url));
+    }
   }
 
   if (path.startsWith('/dashboard') || path.startsWith('/admin')) {

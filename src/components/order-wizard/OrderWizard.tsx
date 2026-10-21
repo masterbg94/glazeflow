@@ -11,35 +11,46 @@ type Kind = 'GLASS_ONLY' | 'RAW_PROFILE' | 'FINISHED_WINDOW' | 'FINISHED_DOOR' |
 interface CatalogItem {
   id: string;
   name?: string;
+  category?: string;
   brand?: string;
   systemName?: string;
   chamberCount?: number;
   installDepthMm?: number;
-  colorOptions?: any;
+  colorOptions?: string[] | null;
+  colorSurchargeFactor?: Record<string, number> | null;
   sellPricePerSqm?: number;
   sellPricePerMeter?: number;
   sellPrice?: number;
-  availableThicknessMm?: any;
+  availableThicknessMm?: number[] | null;
   baseThicknessMm?: number;
   thicknessSurchargePercentPerMm?: number;
   applicableKinds?: string[] | null;
   unit?: string;
-  [key: string]: any;
+  minWidthMm?: number;
+  maxWidthMm?: number;
+  minHeightMm?: number;
+  maxHeightMm?: number;
+  complexityMultiplier?: number;
+  kind?: string;
 }
 
 export function OrderWizard({
-  companyId,
   currency,
   defaultShippingAddress = '',
+  discountPercent = 0,
+  taxRatePercent = 0,
   glassTypes,
   profiles,
   hardwareItems,
   templates,
   processingOptions,
 }: {
-  companyId: string;
   currency: string;
   defaultShippingAddress?: string;
+  /** The tenant's price-list discount, in percent. */
+  discountPercent?: number;
+  /** The main company's tax rate, in percent. */
+  taxRatePercent?: number;
   glassTypes: CatalogItem[];
   profiles: CatalogItem[];
   hardwareItems: CatalogItem[];
@@ -80,6 +91,30 @@ export function OrderWizard({
 
   const visibleHardware = hardwareItems.filter(applicableFor);
   const visibleProcessing = processingOptions.filter(applicableFor);
+
+  // The product template carries the production limits. The server enforces
+  // them too — this is only to stop the tenant from typing a value that will
+  // be rejected.
+  const minWidth = selectedTemplate?.minWidthMm ?? 300;
+  const maxWidth = selectedTemplate?.maxWidthMm ?? 3000;
+  const minHeight = selectedTemplate?.minHeightMm ?? 300;
+  const maxHeight = selectedTemplate?.maxHeightMm ?? 3000;
+
+  const dimensionError =
+    width < minWidth || width > maxWidth
+      ? `Širina mora biti između ${minWidth} i ${maxWidth} mm`
+      : height < minHeight || height > maxHeight
+        ? `Visina mora biti između ${minHeight} i ${maxHeight} mm`
+        : null;
+
+  // The profile colour surcharge comes from the same `colorSurchargeFactor`
+  // map the server reads, so the live quote matches the final price.
+  const profileColorFactor = (() => {
+    const map = selectedProfile?.colorSurchargeFactor;
+    if (!map) return 1;
+    const factor = map[profileColor];
+    return typeof factor === 'number' && factor > 0 ? factor : 1;
+  })();
 
   const pricing = useMemo(() => {
     const glassPanes = ['GLASS_ONLY', 'FINISHED_WINDOW', 'FINISHED_DOOR'].includes(kind)
@@ -143,6 +178,7 @@ export function OrderWizard({
         kind !== 'GLASS_ONLY' && kind !== 'HARDWARE' && selectedProfile
           ? Number(selectedProfile.sellPricePerMeter)
           : undefined,
+      profileColorFactor,
       complexityMultiplier: selectedTemplate ? Number(selectedTemplate.complexityMultiplier) : 1,
       glassPanes,
       hardware,
@@ -164,6 +200,8 @@ export function OrderWizard({
     hardwareSel,
     processingSel,
     glassTypeId,
+    profileColor,
+    profileColorFactor,
   ]);
 
   async function addToCart() {
@@ -228,7 +266,6 @@ export function OrderWizard({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          companyId,
           items: orderItems,
           shippingAddress,
           customerNotes,
@@ -290,10 +327,17 @@ export function OrderWizard({
         {['GLASS_ONLY', 'FINISHED_WINDOW', 'FINISHED_DOOR'].includes(kind) && (
           <section className="rounded-xl border border-slate-200 bg-white p-6">
             <h3 className="mb-4 font-semibold">2. Dimenzije (mm)</h3>
+            {dimensionError && (
+              <p className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {dimensionError}
+              </p>
+            )}
             <div className="grid grid-cols-3 gap-4">
               <Field label="Širina (mm)">
                 <input
                   type="number"
+                  min={minWidth}
+                  max={maxWidth}
                   value={width}
                   onChange={(e) => setWidth(+e.target.value)}
                   className="input"
@@ -302,6 +346,8 @@ export function OrderWizard({
               <Field label="Visina (mm)">
                 <input
                   type="number"
+                  min={minHeight}
+                  max={maxHeight}
                   value={height}
                   onChange={(e) => setHeight(+e.target.value)}
                   className="input"
@@ -390,7 +436,7 @@ export function OrderWizard({
                 onChange={(e) => setProfileColor(e.target.value)}
                 className="input"
               >
-                {((selectedProfile.colorOptions as any) || []).map((c: string) => (
+                {((selectedProfile.colorOptions ?? []) as string[]).map((c: string) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -441,11 +487,13 @@ export function OrderWizard({
                         onChange={(e) => setPane1(+e.target.value)}
                         className="input"
                       >
-                        {(selectedGlass.availableThicknessMm as any)?.map((t: number) => (
-                          <option key={t} value={t}>
-                            {t}mm
-                          </option>
-                        ))}
+                        {((selectedGlass.availableThicknessMm ?? []) as number[]).map(
+                          (t: number) => (
+                            <option key={t} value={t}>
+                              {t}mm
+                            </option>
+                          )
+                        )}
                       </select>
                     </Field>
                   )}
@@ -456,11 +504,13 @@ export function OrderWizard({
                         onChange={(e) => setPane2(+e.target.value)}
                         className="input"
                       >
-                        {(selectedGlass.availableThicknessMm as any)?.map((t: number) => (
-                          <option key={t} value={t}>
-                            {t}mm
-                          </option>
-                        ))}
+                        {((selectedGlass.availableThicknessMm ?? []) as number[]).map(
+                          (t: number) => (
+                            <option key={t} value={t}>
+                              {t}mm
+                            </option>
+                          )
+                        )}
                       </select>
                     </Field>
                   )}
@@ -472,11 +522,13 @@ export function OrderWizard({
                           onChange={(e) => setPane2(+e.target.value)}
                           className="input"
                         >
-                          {(selectedGlass.availableThicknessMm as any)?.map((t: number) => (
-                            <option key={t} value={t}>
-                              {t}mm
-                            </option>
-                          ))}
+                          {((selectedGlass.availableThicknessMm ?? []) as number[]).map(
+                            (t: number) => (
+                              <option key={t} value={t}>
+                                {t}mm
+                              </option>
+                            )
+                          )}
                         </select>
                       </Field>
                       <Field label="Staklo 3 (mm)">
@@ -485,11 +537,13 @@ export function OrderWizard({
                           onChange={(e) => setPane3(+e.target.value)}
                           className="input"
                         >
-                          {(selectedGlass.availableThicknessMm as any)?.map((t: number) => (
-                            <option key={t} value={t}>
-                              {t}mm
-                            </option>
-                          ))}
+                          {((selectedGlass.availableThicknessMm ?? []) as number[]).map(
+                            (t: number) => (
+                              <option key={t} value={t}>
+                                {t}mm
+                              </option>
+                            )
+                          )}
                         </select>
                       </Field>
                     </>
@@ -661,6 +715,8 @@ export function OrderWizard({
           glassCost={pricing.glassCost}
           hardwareCost={pricing.hardwareCost}
           processingCost={pricing.processingCost}
+          discountPercent={discountPercent}
+          taxRatePercent={taxRatePercent}
         />
         {cart.length > 0 && (
           <div className="mt-4 rounded-xl border border-blue-600 bg-blue-50/50 p-4">

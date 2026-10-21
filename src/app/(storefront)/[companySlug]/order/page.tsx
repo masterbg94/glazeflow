@@ -1,56 +1,36 @@
+import { redirect } from 'next/navigation';
 import { OrderWizard } from '@/components/order-wizard/OrderWizard';
-import { getCompanyBySlug } from '@/lib/tenant';
+import { getSessionUser } from '@/lib/rbac';
+import { getTenantBySlug, getTenantCatalog } from '@/lib/tenant';
 
 export default async function OrderPage({ params }: { params: Promise<{ companySlug: string }> }) {
-  const { companySlug } = await params;
-  const company = await getCompanyBySlug(companySlug);
-  const glassTypes = company.glassTypes.map((item) => ({
-    ...item,
-    costPricePerSqm: Number(item.costPricePerSqm),
-    sellPricePerSqm: Number(item.sellPricePerSqm),
-    thicknessSurchargePercentPerMm: Number(item.thicknessSurchargePercentPerMm),
-  }));
-  const pvcProfiles = company.pvcProfiles.map((item) => ({
-    ...item,
-    costPricePerMeter: Number(item.costPricePerMeter),
-    sellPricePerMeter: Number(item.sellPricePerMeter),
-  }));
-  const hardwareItems = company.hardwareItems.map((item) => ({
-    ...item,
-    costPrice: Number(item.costPrice),
-    sellPrice: Number(item.sellPrice),
-    applicableKinds: Array.isArray(item.applicableKinds)
-      ? (item.applicableKinds as string[])
-      : null,
-  }));
-  const productTemplates = company.productTemplates.map((item) => ({
-    ...item,
-    complexityMultiplier: Number(item.complexityMultiplier),
-  }));
-  const processingOptions = company.processingOptions.map((item) => ({
-    ...item,
-    costPrice: Number(item.costPrice),
-    sellPrice: Number(item.sellPrice),
-    applicableKinds: Array.isArray(item.applicableKinds)
-      ? (item.applicableKinds as string[])
-      : null,
-  }));
+  const { companySlug: tenantSlug } = await params;
+  const tenant = await getTenantBySlug(tenantSlug);
+
+  // Only members of this tenant order here (cross-tenant safety)
+  const user = await getSessionUser();
+  if (!user?.customerOrgId) redirect('/login');
+  if (user.customerOrgId !== tenant.id) redirect(`/${user.customerOrgSlug ?? ''}`);
+
+  const catalog = await getTenantCatalog(tenant.id);
 
   return (
     <div>
       <h1 className="mb-2 text-2xl font-bold">Poručite stavku</h1>
       <p className="mb-8 text-sm text-slate-500">
-        Konfigurisite stavke — cene se ažuriraju naživo prilikom unosa dimenzija.
+        Konfigurisite stavke — cene se ažuriraju naživo po vašem cenovniku
+        {catalog.tenant.discountPercent > 0 && ` (popust: ${catalog.tenant.discountPercent}%)`}.
       </p>
       <OrderWizard
-        companyId={company.id}
-        currency={company.currency}
-        defaultShippingAddress={company.address ?? ''}
-        glassTypes={glassTypes}
-        profiles={pvcProfiles}
-        hardwareItems={hardwareItems}
-        templates={productTemplates}
-        processingOptions={processingOptions}
+        currency={catalog.company.currency}
+        defaultShippingAddress={catalog.tenant.shippingAddress ?? ''}
+        discountPercent={catalog.tenant.discountPercent}
+        taxRatePercent={catalog.company.taxRatePercent}
+        glassTypes={catalog.glassTypes}
+        profiles={catalog.pvcProfiles}
+        hardwareItems={catalog.hardwareItems}
+        templates={catalog.productTemplates}
+        processingOptions={catalog.processingOptions}
       />
     </div>
   );

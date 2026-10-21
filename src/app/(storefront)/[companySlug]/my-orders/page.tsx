@@ -1,16 +1,23 @@
 import Link from 'next/link';
-import { getSession } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/rbac';
+import { getTenantBySlug } from '@/lib/tenant';
 
 export default async function MyOrders({ params }: { params: Promise<{ companySlug: string }> }) {
-  const { companySlug } = await params;
-  const session = await getSession();
-  if (!session?.user) return <p>Molimo prijavite se da biste videli narudžbine.</p>;
+  const { companySlug: tenantSlug } = await params;
+  const tenant = await getTenantBySlug(tenantSlug);
+  const user = await getSessionUser();
+  if (!user?.customerOrgId) return <p>Molimo prijavite se da biste videli narudžbine.</p>;
+  if (user.customerOrgId !== tenant.id) redirect(`/${user.customerOrgSlug ?? ''}`);
 
-  const userId = (session.user as any).id;
+  // Whole tenant org sees shared orders (admin and manager both track orders).
+  // The list is bounded so a tenant with a long history does not load every
+  // order on every page view.
   const orders = await prisma.order.findMany({
-    where: { createdById: userId },
+    where: { customerOrgId: user.customerOrgId },
     orderBy: { createdAt: 'desc' },
+    take: 100,
     include: { items: true },
   });
 
@@ -22,7 +29,7 @@ export default async function MyOrders({ params }: { params: Promise<{ companySl
         {orders.map((o) => (
           <Link
             key={o.id}
-            href={`/${companySlug}/my-orders/${o.id}`}
+            href={`/${tenantSlug}/my-orders/${o.id}`}
             className="block rounded-xl border border-slate-200 bg-white p-5 hover:shadow-sm"
           >
             <div className="flex items-center justify-between">
@@ -36,7 +43,10 @@ export default async function MyOrders({ params }: { params: Promise<{ companySl
                 <p className="font-semibold text-blue-600">
                   {o.total.toString()} {o.currency}
                 </p>
-                <p className="text-xs text-slate-500">{o.status}</p>
+                <p className="text-xs text-slate-500">
+                  {o.status}
+                  {o.paymentStatus !== 'UNPAID' && ` · ${o.paymentStatus}`}
+                </p>
               </div>
             </div>
           </Link>

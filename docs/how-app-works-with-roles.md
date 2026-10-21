@@ -1,15 +1,22 @@
 ## **Kako radi GlazeFlow — pregled za kupce, admina i super admina**
 
-Aplikacija je platforma za narudžbinu stakla, PVC profila i gotovih prozora/vrata. Podržava više kompanija (multi-tenant) — svaka kompanija ima sopstveni katalog, cene i korisnike.
+Aplikacija je platforma za narudžbinu stakla, PVC profila i gotovih prozora/vrata.
+
+**Model je "jedna glavna kompanija".** Glavna kompanija (`Company.isMainCompany = true`) poseduje ceo katalog i sve cene. Tenanti — male kompanije koje naručuju od nje — su `CustomerOrg` redovi sa slug-om koji postaje subdomen (`bob.localhost:3000`). Tenant **ne kreira** `Company` red.
+
+> Detaljno i provereno: `knowledge-base/roles-and-tenancy.md` i
+> `knowledge-base/auth-gaps.md`.
 
 ---
 
 ### **1. KUPAC (CUSTOMER)**
 
-Kupac se registruje na stranici `/register` (javno dostupna). Nakon registracije prijavljuje se i može:
+Kupac **ne može da se sam registruje** — `/register` UI je zatvoren ("Registracija zatvorena", `src/app/(auth)/register/page.tsx:5`), a `POST /api/register` traži `SUPER_ADMIN` ili `COMPANY_ADMIN`. Nalog pravi admin glavne kompanije.
 
-- **Pregledati prodavnicu** — svaka kompanija ima sopstveni storefront na npr. `acme.localhost:3000`
-- **Poručiti proizvod** — stranica `/order` otvara wizard sa 8 koraka:
+Kupac prijavom dobija:
+
+- **Prodavnicu tenanta** — na svom subdomenu, npr. `bob.localhost:3000`. Podaci se čitaju preko `getTenantBySlug` iz `src/lib/tenant.ts:24`
+- **Poručiti proizvod** — stranica `/order` otvara wizard sa 8 koraka (POST na `/api/orders`):
   1. Šta treba? (gotov prozor, gotova vrata, samo staklo, ili sirovi PVC profil)
   2. Dimenzije u mm (širina, visina, količina) ili dužina profila u metrima
   3. Šablon proizvoda (npr. "Fiksni prozor", "Klizna terasna vrata")
@@ -45,10 +52,13 @@ Admin kompanije upravlja katalogom i narudžbinama:
 
 Super admin ima pristup na `/admin` panel:
 
-- **Kreiranje kompanija** — forme za novu kompaniju (naziv, slug, boje, valuta, porez, markup)
-- **Pregled svih kompanija** — tabela sa brojem korisnika i narudžbina po kompaniji
-- **Upravljanje korisnicima** — u detaljima kompanije može dodavati, brisati i menjati status korisnika (aktivan/neaktivan)
+- **Kreiranje tenanta** — forma "Dodaj tenant" (naziv firme, slug/poddomen, PIB, adresa, popust na cenovnik). Slanje ide na `POST /api/tenants`, ne na `/api/companies`
+- **Pregled kompanija i tenanata** — tabela sa brojem korisnika, narudžbina i veličine kataloga, sa mogućnošću proširenja reda
+- **Statistike platforme** — `/api/admin/stats`: ukupno kompanija, tenanata, korisnika, narudžbina, prihoda, raspodela po statusu i po ulozi
+- **Upravljanje korisnicima** — u detaljima kompanije ili tenanta može dodavati, brisati i menjati status korisnika (aktivan/neaktivan)
 - **Vidi sve narudžbine** — bez ograničenja na kompaniju
+
+> **Ne postoji kreiranje nove `Company` kompanije.** Model je "jedna glavna kompanija"; `POST /api/companies` vraća 403. Forma na `/admin` pravi **tenanta** (`CustomerOrg`), ne `Company` red.
 
 ---
 
@@ -69,18 +79,22 @@ Cene se zatim koriste u wizardu koji automatski račini **živu cenu** na osnovu
 
 ### **5. Kako dodati kupca**
 
-Postoje dva načina:
+**Samoregistracija ne postoji.** `/register` UI je zatvoren ("Registracija zatvorena", `src/app/(auth)/register/page.tsx:5`). Nalog pravi super admin.
 
-**A. Kupac se sam registruje** — javna stranica `/register` (dostupna bez prijave). Kupac unosi ime, email, lozinku i bira kompaniju. Nakon registracije dobija nalog i može odmah da počne da poručuje.
+**A. Super admin dodaje korisnika** — na stranici `/admin/companies/[id]` (ista ruta za kompaniju i tenanta; entitet se bira iz tabele "Entiteti (Kompanije i Tenanti)") pritisće dugme **"Dodaj korisnika"** i unosi email, ime, lozinku i ulogu. Za tenant korisnika se bira `TENANT_ADMIN` ili `TENANT_MANAGER`; za korisnika glavne kompanije `COMPANY_ADMIN` / `COMPANY_SALES` / `COMPANY_PRODUCTION`.
 
-**B. Super admin dodaje korisnika** — na stranici `/admin/companies/[id]` pritisće dugme **"Dodaj korisnika"** i unosi email, ime, lozinku i ulogu (Administrator, Prodaja ili Proizvodnja). Tako se kreira nalog koji se odmah javlja na storefrontu te kompanije.
+**B. Tenant se kreira odvojeno** — `POST /api/tenants` pravi `CustomerOrg` + `PriceList`. Dozvoljeno za `SUPER_ADMIN` i main-company `COMPANY_ADMIN`. `POST /api/companies` je blokiran sa 403.
+
+> **API vs. UI.** `POST /api/register` dozvoljava i `COMPANY_ADMIN`, ali **nijedan UI ga ne poziva** — nema ekrana na `/dashboard` za dodavanje korisnika tenanta. Trenutno jedini način da se kreira korisnik je super admin kroz `/admin`. API putanja je namerno otvorena za main company admina i može se koristiti programski.
 
 ---
 
 ### **Ključni podsvešci (iz analize koda)**
 
-1. **Kupci ne mogu videti katalog** — API vraća 403 za CUSTOMER role. Samo mogu da poručuju (wizard im prikazuje proizvode ali ne i cene pre narudžbine).
-2. **Samo CUSTOMER može da kreira narudžbinu** — admin i staff ne mogu da poruče umesto kupca.
-3. **Cene se računaju uživo** — nema fiksnih cenovnika, sve se računa na osnovu dimenzija i opcija u realnom vremenu.
-4. **Svaka kompanija ima sopstvenu valutu, porez i markup** — super admin postavlja ove parametre prilikom kreiranja kompanije.
-
+1. **Kupac vidi ceo katalog glavne kompanije.** `getTenantCatalog` (`src/lib/tenant.ts:44-137`) vraća sve aktivne stavke, sa cenama tenanta primenjenim. **Per-tenant dodela proizvoda ne postoji** — nema modela koji bi ograničio šta tenant sme da poruči. `CustomerPriceOverride` menja samo cenu, ne i vidljivost.
+2. **Kupac vidi cene, ali ne kupovne cene.** `costPrice` se nikad ne šalje tenantu. `GET /api/catalog` je za main company (403 za `CUSTOMER`), ali wizard dobija katalog direktno iz `getTenantCatalog`.
+3. **Samo CUSTOMER može da kreira narudžbinu** — admin i staff ne mogu da poruče umesto kupca.
+4. **Cene se računaju uživo, ali ne potpuno.** Live prikaz u wizardu pokazuje samo jediničnu cenu i cenu stavke — **bez poreza i bez popusta tenanta**. Server računa konačno na `POST /api/orders`, pa se ukupan iznos razlikuje od onoga što je kupac video usput.
+5. **Cena je server-authoritative.** `src/lib/pricing-engine.ts` je čist modul; server preračunava sve iz baze u trenutku slanja narudžbine. Cena iz request body-ja se nikad ne upisuje u bazu.
+6. **Valuta, porez i markup su na glavnoj kompaniji** — `Company.currency`, `Company.taxRatePercent`. `defaultMarkupPercent` i `minOrderValue` postoje u šemi ali se **ne koriste** u pricing engine-u.
+7. **`TENANT_MANAGER` danas ima istu moć kao `TENANT_ADMIN`**, osim što ne vidi `/finance`. Ograničenje postoji na tačno jednom mestu: `src/app/(storefront)/[companySlug]/finance/page.tsx:20`.

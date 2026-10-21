@@ -1,20 +1,13 @@
-"use client";
+'use client';
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  useCallback,
-} from "react";
-import type { ClientRealtimeEvent } from "@/lib/events";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { isClientRealtimeEvent, type ClientRealtimeEvent } from '@/lib/events';
 
 interface RealtimeContextValue {
   /** Subscribe to real-time events. Returns unsubscribe function. */
   subscribe: (handler: (event: ClientRealtimeEvent) => void) => () => void;
   /** Current connection status */
-  status: "connecting" | "connected" | "disconnected" | "error";
+  status: 'connecting' | 'connected' | 'disconnected' | 'error';
   /** Manually trigger reconnection */
   reconnect: () => void;
 }
@@ -28,7 +21,7 @@ export function RealtimeProvider({
   children: React.ReactNode;
   onError?: (error: Error) => void;
 }) {
-  const [status, setStatus] = useState<RealtimeContextValue["status"]>("connecting");
+  const [status, setStatus] = useState<RealtimeContextValue['status']>('connecting');
   const handlersRef = useRef(new Set<(event: ClientRealtimeEvent) => void>());
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -49,14 +42,14 @@ export function RealtimeProvider({
 
   const connect = useCallback(() => {
     cleanup();
-    setStatus("connecting");
+    setStatus('connecting');
 
     try {
-      const es = new EventSource("/api/notifications/stream");
+      const es = new EventSource('/api/notifications/stream');
       eventSourceRef.current = es;
 
       es.onopen = () => {
-        setStatus("connected");
+        setStatus('connected');
         reconnectAttemptsRef.current = 0;
       };
 
@@ -64,25 +57,27 @@ export function RealtimeProvider({
         try {
           const data = JSON.parse(e.data);
           // Skip connection confirmation message
-          if (data.type === "connected") return;
+          if (data.type === 'connected') return;
 
-          // Validate and dispatch to handlers
-          if (data.event && data.payload) {
+          // Validate with the shared type guard before dispatching. The
+          // exported guards were dead code and the inline check was weaker:
+          // it cast any payload straight into a `ClientRealtimeEvent`.
+          if (isClientRealtimeEvent(data)) {
             handlersRef.current.forEach((handler) => {
               try {
-                handler(data as ClientRealtimeEvent);
+                handler(data);
               } catch (handlerError) {
-                console.error("[RealtimeProvider] Handler error:", handlerError);
+                console.error('[RealtimeProvider] Handler error:', handlerError);
               }
             });
           }
         } catch (parseError) {
-          console.error("[RealtimeProvider] Parse error:", parseError);
+          console.error('[RealtimeProvider] Parse error:', parseError);
         }
       };
 
       es.onerror = (err) => {
-        setStatus("error");
+        setStatus('error');
         cleanup();
 
         // Exponential backoff reconnection
@@ -93,12 +88,12 @@ export function RealtimeProvider({
             connect();
           }, delay);
         } else {
-          setStatus("disconnected");
-          onError?.(new Error("Max reconnection attempts reached"));
+          setStatus('disconnected');
+          onError?.(new Error('Max reconnection attempts reached'));
         }
       };
     } catch (err) {
-      setStatus("error");
+      setStatus('error');
       onError?.(err as Error);
     }
   }, [cleanup, onError]);
@@ -109,13 +104,10 @@ export function RealtimeProvider({
     return () => cleanup();
   }, [connect, cleanup]);
 
-  const subscribe = useCallback(
-    (handler: (event: ClientRealtimeEvent) => void) => {
-      handlersRef.current.add(handler);
-      return () => handlersRef.current.delete(handler);
-    },
-    []
-  );
+  const subscribe = useCallback((handler: (event: ClientRealtimeEvent) => void) => {
+    handlersRef.current.add(handler);
+    return () => handlersRef.current.delete(handler);
+  }, []);
 
   const reconnect = useCallback(() => {
     reconnectAttemptsRef.current = 0;
@@ -134,7 +126,7 @@ export function RealtimeProvider({
 export function useRealtime() {
   const context = useContext(RealtimeContext);
   if (!context) {
-    throw new Error("useRealtime must be used within a RealtimeProvider");
+    throw new Error('useRealtime must be used within a RealtimeProvider');
   }
   return context;
 }

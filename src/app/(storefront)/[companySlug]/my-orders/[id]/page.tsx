@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation';
 import { OrderMessages } from '@/components/dashboard/OrderMessages';
 import { RealtimeOrderRefresher } from '@/components/dashboard/RealtimeOrderRefresher';
-import { getSession } from '@/lib/auth';
+import { TenantOrderActions } from '@/components/dashboard/TenantOrderActions';
 import { prisma } from '@/lib/prisma';
+import { getSessionUser } from '@/lib/rbac';
 
 export default async function OrderDetail({
   params,
@@ -10,8 +11,8 @@ export default async function OrderDetail({
   params: Promise<{ id: string; companySlug: string }>;
 }) {
   const { id } = await params;
-  const session = await getSession();
-  if (!session?.user) return <p>Molimo prijavite se.</p>;
+  const user = await getSessionUser();
+  if (!user) return <p>Molimo prijavite se.</p>;
 
   const order = await prisma.order.findUnique({
     where: { id },
@@ -27,7 +28,8 @@ export default async function OrderDetail({
       statusHistory: true,
     },
   });
-  if (!order || order.createdById !== (session.user as any).id) notFound();
+  // Tenant org members see all org orders; ownership = customerOrgId
+  if (!order || order.customerOrgId !== user.customerOrgId) notFound();
 
   return (
     <div className="space-y-6">
@@ -101,7 +103,9 @@ export default async function OrderDetail({
               <span className="mt-1 h-2 w-2 rounded-full bg-blue-500" />
               <div>
                 <p className="font-medium">{h.toStatus}</p>
-                <p className="text-xs text-slate-400">{new Date(h.createdAt).toLocaleString('sr-RS')}</p>
+                <p className="text-xs text-slate-400">
+                  {new Date(h.createdAt).toLocaleString('sr-RS')}
+                </p>
               </div>
             </div>
           ))}
@@ -109,6 +113,13 @@ export default async function OrderDetail({
       </div>
 
       <OrderMessages orderId={order.id} />
+
+      <TenantOrderActions
+        orderId={order.id}
+        status={order.status}
+        items={order.items.map((i) => ({ id: i.id, status: i.status }))}
+        canCancel={order.status === 'NEW'}
+      />
     </div>
   );
 }
