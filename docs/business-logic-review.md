@@ -581,14 +581,16 @@ tenant lands raw in the HTML email that main-company staff receive.
 
 **Fix:** HTML-escape `subject` and `body` before interpolation.
 
-### 5.6 New: a deactivated user keeps a working session for up to 30 days
+### 5.6 New: a deactivated user keeps a working session for up to 30 days — FIXED
 
-`src/lib/auth.ts:18` uses `strategy: 'jwt'`, and the `jwt` callback (line 67)
-copies claims from the token without re-reading the user. The admin UI can set
-`isActive: false` (`api/companies/[id]/users/[userId]/route.ts:66`), but the
-session keeps working until the token expires or the user signs out.
+The gap was that `strategy: 'jwt'` copied claims from the token without
+re-reading the user, so `isActive: false` had no effect until the token expired.
 
-**Fix:** shorten `maxAge` and re-check `isActive` in the `jwt` callback.
+**Fixed:** the `jwt` callback in `src/lib/auth.ts` re-reads the user on every
+request and throws when the account is inactive, which drops the session
+cookie. The session lifetime was shortened as well — 8 hours, refreshed at
+most every 30 minutes. See `knowledge-base/auth-gaps.md` #16 and
+`docs/security-hardening.md`.
 
 ### 5.7 Two notes on existing gaps that are less severe than documented
 

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { requireRole, toHttpError } from '@/lib/rbac';
+
+const COMPANY_ROLES = ['COMPANY_ADMIN', 'COMPANY_SALES', 'COMPANY_PRODUCTION'] as const;
+const CUSTOMER_ORG_ROLES = ['TENANT_ADMIN', 'TENANT_MANAGER'] as const;
 
 async function findUserAndEntity(id: string, userId: string) {
   // Check if it's a Company or CustomerOrg (tenant)
@@ -39,7 +44,36 @@ export async function DELETE(
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
+  // Foreign keys are enforced, so a user who owns history cannot be deleted.
+  // Deactivating the account keeps the history readable and the person out.
+  const [orders, messages, transitions, attachments] = await Promise.all([
+    prisma.order.count({ where: { createdById: userId } }),
+    prisma.orderMessage.count({ where: { authorId: userId } }),
+    prisma.orderStatusTransition.count({
+      where: { OR: [{ requestedBy: userId }, { approvedBy: userId }] },
+    }),
+    prisma.orderAttachment.count({ where: { uploadedById: userId } }),
+  ]);
+  const references = orders + messages + transitions + attachments;
+  if (references > 0) {
+    return NextResponse.json(
+      {
+        error:
+          'This user is referenced by orders or messages. Deactivate the account instead of deleting it.',
+      },
+      { status: 409 }
+    );
+  }
+
   await prisma.user.delete({ where: { id: userId } });
+
+  await auditFromSession(session.user, {
+    action: 'user.delete',
+    entity: 'User',
+    entityId: userId,
+    ip: getClientIp(req.headers),
+    metadata: { email: user.email, scope: id },
+  });
 
   return NextResponse.json({ success: true });
 }
@@ -80,6 +114,12 @@ export async function PATCH(
       { status: 400 }
     );
   }
+  if (companyRole && !COMPANY_ROLES.includes(companyRole)) {
+    return NextResponse.json({ error: 'Invalid companyRole' }, { status: 400 });
+  }
+  if (customerOrgRole && !CUSTOMER_ORG_ROLES.includes(customerOrgRole)) {
+    return NextResponse.json({ error: 'Invalid customerOrgRole' }, { status: 400 });
+  }
 
   const updated = await prisma.user.update({
     where: { id: userId },
@@ -100,6 +140,31 @@ export async function PATCH(
       customerOrgRole: true,
       isActive: true,
       createdAt: true,
+    },
+  });
+
+  await auditFromSession(session.user, {
+    action: 'user.update',
+    entity: 'User',
+    entityId: userId,
+    ip: getClientIp(req.headers),
+    metadata: {
+      email: user.email,
+      scope: id,
+      before: {
+        name: user.name,
+        phone: user.phone,
+        companyRole: user.companyRole,
+        customerOrgRole: user.customerOrgRole,
+        isActive: user.isActive,
+      },
+      after: {
+        name: updated.name,
+        phone: updated.phone,
+        companyRole: updated.companyRole,
+        customerOrgRole: updated.customerOrgRole,
+        isActive: updated.isActive,
+      },
     },
   });
 

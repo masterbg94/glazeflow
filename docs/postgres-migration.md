@@ -176,9 +176,10 @@ that never surfaced.
    npm run dev
    ```
 
-   Then log in as `admin@acme.test` / `Password123!` and as
-   `bob@customers.test` / `Password123!`, and open a tenant storefront at
-   `http://bob.localhost:3000`.
+   Then log in as `admin@acme.test` / `Gzf!Dobav#2026Kr4pN8` and as
+   `bob@customers.test` / `Gzf!Kupac#2026Hd6qP9`, and open a tenant storefront
+   at `http://bob.localhost:3000`. The full credential list is in
+   `docs/security-hardening.md`.
 
 8. **Watch for FK errors in the first week.** They appear as insert failures on
    relations that SQLite silently accepted.
@@ -187,6 +188,21 @@ that never surfaced.
 
 If the target is Supabase:
 
+- **The public schema is exposed.** This is the one thing that is not like a
+  plain Postgres server. Supabase's default privileges grant `anon` and
+  `authenticated` full DML (`arwdDxtm`) on every new table in `public`, and the
+  anon key is public. With row level security off, that key reads and writes
+  every row through PostgREST — outside NextAuth and outside every check in
+  `src/`. Verified on the local stack on 2026-10-22 by querying
+  `pg_default_acl`. Run `prisma/postgres-supabase.sql` right after the schema
+  lands: it revokes those grants and turns row level security on for every
+  table. See the proof below.
+- **`postgres` has `rolbypassrls = true`.** Policies written for the default
+  role do not constrain the application. The lockdown file therefore enables
+  RLS without `FORCE`, so the application (the table owner) keeps its own
+  checks while the public surface is closed. For per-tenant isolation enforced
+  by the database, use `prisma/postgres-rls.sql` with a dedicated
+  `NOBYPASSRLS` role.
 - **Do not reuse the public schema for app tables without saying so.** The
   local stack already has `auth`, `storage`, `realtime`, `graphql` schemas. Put
   the app in `public` (the Prisma default) or in a dedicated schema.
@@ -202,6 +218,58 @@ If the target is Supabase:
   `get_project_url` before running anything against it.
 - **Backups.** Supabase PITR is on free tier. Confirm it covers the window
   before the migration.
+
+### The local stack, step by step
+
+The local stack already runs (Supabase API on `127.0.0.1:54321`, Postgres on
+`127.0.0.1:54322`, `public` empty). The application does not use it yet.
+
+```bash
+# 1. a scratch database, so the app's public schema stays untouched
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  -c "CREATE DATABASE glazeflow"
+
+# 2. the Postgres DDL for the current schema
+cp prisma/schema.prisma /tmp/schema_pg.prisma
+sed -i '' 's/provider = "sqlite"/provider = "postgresql"/' /tmp/schema_pg.prisma
+DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54322/glazeflow" \
+  npx prisma migrate diff --from-empty --to-schema-datamodel /tmp/schema_pg.prisma --script \
+  > /tmp/init.sql
+psql "postgresql://postgres:postgres@127.0.0.1:54322/glazeflow" -f /tmp/init.sql
+
+# 3. close the public surface
+psql "postgresql://postgres:postgres@127.0.0.1:54322/glazeflow" \
+  -f prisma/postgres-supabase.sql
+
+# 4. point the app at it
+#    .env:  DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54322/glazeflow"
+#    prisma/schema.prisma: provider = "postgresql"
+npx prisma generate
+npm run db:seed
+npm run dev
+```
+
+Step 4 is the only one that changes the application. The switch back is the
+same three lines in reverse: `provider = "sqlite"`, `DATABASE_URL="file:./dev.db"`,
+`npx prisma generate`.
+
+For a **hosted** Supabase project, the same SQL runs against the project
+database. Use the pooled URL for the application
+(`postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true`)
+and the direct URL for migrations (`DIRECT_URL`). The anon and service role
+keys are not used by this application — it authenticates with NextAuth and
+talks to the database with the database credentials only.
+
+### Proof of the lockdown (run on the local stack, 2026-10-22)
+
+| Step                                                       | Result                                                               |
+| ---------------------------------------------------------- | -------------------------------------------------------------------- |
+| Schema applied to Postgres                                 | 24 tables, 13 native enums, 10 `jsonb` columns, 28 `numeric` columns |
+| `grant select on public."Company" to anon`, read as `anon` | **1 row** — the exposure                                             |
+| `prisma/postgres-supabase.sql` applied, read as `anon`     | `ERROR: permission denied for table Company`                         |
+| Grant restored, read as `anon`                             | **0 rows** — row level security denies it                            |
+| Read as `postgres` (the application role)                  | 1 row — the application still works                                  |
+| Tables without row level security                          | none                                                                 |
 
 ## Rollback
 

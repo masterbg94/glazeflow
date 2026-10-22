@@ -52,7 +52,8 @@ The seed is idempotent (`upsert` throughout), so re-running it is safe.
 | `bob@customers.test` | `CUSTOMER` / `TENANT_ADMIN` | tenant `bob` |
 | `worker@customers.test` | `CUSTOMER` / `TENANT_MANAGER` | tenant `bob` |
 
-Password for all: `Password123!`. Development only — never in production, never
+Each seed account has its own strong password — see `docs/security-hardening.md`.
+Development only — never in production, never
 in source control beyond the seed file.
 
 The main company is `acme` with `isMainCompany: true` and `isProducer: true`.

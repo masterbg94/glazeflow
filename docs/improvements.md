@@ -93,8 +93,10 @@ open holes. The full list with severities is in `knowledge-base/auth-gaps.md`.
 4. **Add `serializeOrder()` / `serializeOrderItem()`** helpers. The `.toString()`
    pattern for Prisma `Decimal` fields is currently copy-pasted at each
    Server→Client boundary; see `src/app/(company)/dashboard/orders/[id]/page.tsx:103-104,114`.
-5. **Add audit logging** for status changes, messages and user creation. There
-   is no audit trail today.
+5. ~~**Add audit logging** for status changes, messages and user creation.~~
+   **Done 2026-10-21** — the `AuditLog` model and `src/lib/audit.ts` write one
+   row per state change, readable at `GET /api/admin/audit`. See
+   `docs/security-hardening.md`.
 
 ### Phase 3 — Client architecture
 

@@ -46,6 +46,25 @@ load only when the agent runtime activates the matching skill. The GlazeFlow
 skills are listed in `knowledge-base/README.md`; load the one whose description
 matches the task.
 
+## Security rules
+
+1. Every password that reaches the database goes through
+   `checkPasswordPolicy()` in `src/lib/password-policy.ts` and is hashed with
+   `hashPassword()` (bcrypt cost 12). Never call `bcrypt.hash` directly.
+2. Every state-changing route writes one audit row through `auditFromSession`
+   in `src/lib/audit.ts`. A change that is not audited cannot be proved, so a
+   new mutating route is incomplete without it.
+3. The middleware applies a rate limit and an origin check to every mutating
+   `/api` request (`src/middleware.ts`). New routes inherit both; do not
+   re-implement them per route.
+4. Sessions live at most 8 hours. Do not extend the lifetime without a reason
+   written in `docs/security-hardening.md`.
+5. `companyId`, `customerOrgId`, and `slug` come from the session, never from
+   the body, and never from a client-supplied price.
+6. Development credentials live in `prisma/seed.ts` (`SEED_PASSWORDS`) and are
+   documented in `docs/security-hardening.md`. They are local only. Never put a
+   production secret in a tracked file.
+
 ## The three invariants
 
 1. **One main company.** `Company.isMainCompany = true`, exactly one row. It

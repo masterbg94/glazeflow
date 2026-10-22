@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
 import { notifyMany } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { getSessionUser, type SessionUser } from '@/lib/rbac';
 import { publishToUsers } from '@/lib/realtime';
 
@@ -54,6 +56,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const message = await prisma.orderMessage.create({
     data: { orderId: id, authorId: user.id, body: text },
     include: { author: { select: { name: true, platformRole: true } } },
+  });
+
+  await auditFromSession(user, {
+    action: 'order.message.create',
+    entity: 'OrderMessage',
+    entityId: message.id,
+    ip: getClientIp(req.headers),
+    metadata: { orderId: order.id, length: text.length },
   });
 
   const recipients =

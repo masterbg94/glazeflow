@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
 import { getSession } from '@/lib/auth';
 import { notify, notifyMany } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { publishToUsers } from '@/lib/realtime';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -79,6 +81,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return updated;
     });
 
+    await auditFromSession(user, {
+      action: 'order.transition.approve',
+      entity: 'OrderStatusTransition',
+      entityId: transition.id,
+      ip: getClientIp(req.headers),
+      metadata: {
+        orderId: transition.orderId,
+        from: transition.fromStatus,
+        to: transition.toStatus,
+        note,
+      },
+    });
+
     const members = await prisma.user.findMany({
       where: { customerOrgId: transition.order.customerOrgId },
     });
@@ -132,6 +147,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   await prisma.orderStatusTransition.update({
     where: { id },
     data: { status: 'REJECTED', approvedBy: user.id, approvedAt: new Date() },
+  });
+
+  await auditFromSession(user, {
+    action: 'order.transition.reject',
+    entity: 'OrderStatusTransition',
+    entityId: transition.id,
+    ip: getClientIp(req.headers),
+    metadata: {
+      orderId: transition.orderId,
+      from: transition.fromStatus,
+      to: transition.toStatus,
+      note,
+    },
   });
 
   // Notify requester

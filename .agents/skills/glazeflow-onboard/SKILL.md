@@ -130,7 +130,7 @@ npm run build        # typecheck + build
 npm run db:studio    # browse the database
 ```
 
-Seed logins, all password `Password123!`:
+Seed logins (each account has its own password — see `docs/security-hardening.md`):
 
 | Account | Role |
 | --- | --- |

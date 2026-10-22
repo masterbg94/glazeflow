@@ -1,7 +1,9 @@
-import bcrypt from 'bcryptjs';
 import { getServerSession, NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import { recordAudit } from './audit';
+import { verifyPassword } from './password-policy';
 import { prisma } from './prisma';
+import { getClientIp, rateLimit, rateLimitCount, resetRateLimit } from './rate-limit';
 
 // On localhost dev (including tenant subdomains like bob.localhost) the cookie
 // must be host-only: Chromium rejects Set-Cookie with Domain=.localhost for
@@ -14,9 +16,18 @@ const sessionCookieDomain = isLocalhost
   ? undefined
   : `.${(process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000').split(':')[0]}`;
 
+/** Failed sign-ins before the account is locked, and the lock window. */
+const LOGIN_FAIL_LIMIT_PER_EMAIL = 8;
+const LOGIN_FAIL_LIMIT_PER_IP = 30;
+const LOGIN_FAIL_WINDOW_MS = 15 * 60 * 1000;
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
+    // A session lives at most 8 hours and is refreshed at most every 30
+    // minutes, so an abandoned browser does not keep a valid token forever.
+    maxAge: 8 * 60 * 60,
+    updateAge: 30 * 60,
   },
   pages: { signIn: '/login' },
   cookies: {
@@ -27,6 +38,7 @@ export const authOptions: NextAuthOptions = {
         sameSite: 'lax',
         path: '/',
         secure: process.env.NODE_ENV === 'production',
+        maxAge: 8 * 60 * 60,
         ...(sessionCookieDomain ? { domain: sessionCookieDomain } : {}),
       },
     },
@@ -38,18 +50,67 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
+
+        const email = credentials.email.trim().toLowerCase();
+        const ip = req ? getClientIp(req.headers) : 'unknown';
+        const ipKey = `login:fail:ip:${ip}`;
+        const emailKey = `login:fail:email:${email}`;
+
+        // A locked account stays locked for the length of the window, even if
+        // the password is correct. Brute force must not be able to succeed by
+        // simply being patient within the window.
+        if (rateLimitCount(ipKey) >= LOGIN_FAIL_LIMIT_PER_IP) return null;
+        if (rateLimitCount(emailKey) >= LOGIN_FAIL_LIMIT_PER_EMAIL) return null;
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+          where: { email },
           include: {
             company: { select: { slug: true } },
             customerOrg: { select: { id: true, slug: true } },
           },
         });
-        if (!user || !user.passwordHash || !user.isActive) return null;
-        const valid = await bcrypt.compare(credentials.password, user.passwordHash);
-        if (!valid) return null;
+        if (!user || !user.passwordHash || !user.isActive) {
+          rateLimit(ipKey, LOGIN_FAIL_LIMIT_PER_IP, LOGIN_FAIL_WINDOW_MS);
+          rateLimit(emailKey, LOGIN_FAIL_LIMIT_PER_EMAIL, LOGIN_FAIL_WINDOW_MS);
+          await recordAudit({
+            action: 'auth.login.failed',
+            entity: 'User',
+            actor: user
+              ? { id: user.id, email: user.email, platformRole: user.platformRole }
+              : null,
+            ip,
+            metadata: { email, reason: user ? 'inactive-account' : 'unknown-account' },
+          });
+          return null;
+        }
+
+        const valid = await verifyPassword(credentials.password, user.passwordHash);
+        if (!valid) {
+          rateLimit(ipKey, LOGIN_FAIL_LIMIT_PER_IP, LOGIN_FAIL_WINDOW_MS);
+          rateLimit(emailKey, LOGIN_FAIL_LIMIT_PER_EMAIL, LOGIN_FAIL_WINDOW_MS);
+          await recordAudit({
+            action: 'auth.login.failed',
+            entity: 'User',
+            entityId: user.id,
+            actor: { id: user.id, email: user.email, platformRole: user.platformRole },
+            ip,
+            metadata: { email, reason: 'wrong-password' },
+          });
+          return null;
+        }
+
+        resetRateLimit(ipKey);
+        resetRateLimit(emailKey);
+        await recordAudit({
+          action: 'auth.login.success',
+          entity: 'User',
+          entityId: user.id,
+          actor: { id: user.id, email: user.email, platformRole: user.platformRole },
+          ip,
+        });
+
         return {
           id: user.id,
           email: user.email,

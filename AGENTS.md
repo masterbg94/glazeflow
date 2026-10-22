@@ -164,12 +164,41 @@ The rules a new change must keep:
 - A user role field must match the entity that owns the user: a `companyRole`
   on a tenant user is a 400.
 
+## Security hardening (2026-10-21)
+
+The authorization audit was followed by a hardening pass. Full record:
+`docs/security-hardening.md`.
+
+| Area                                                                          | Where it lives                                               |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Rate limit on sign-in and on every mutating `/api` call                       | `src/lib/rate-limit.ts`, `src/middleware.ts:guardApiRequest` |
+| Sign-in lockout — 8 failures per account, 30 per address, 15 min              | `src/lib/auth.ts`                                            |
+| Security headers (CSP, HSTS, `X-Frame-Options`, `nosniff`, `Referrer-Policy`) | `next.config.ts`                                             |
+| Origin check on mutating requests                                             | `src/middleware.ts:originAllowed`                            |
+| Audit trail, one row per state change                                         | `AuditLog` model, `src/lib/audit.ts`, `GET /api/admin/audit` |
+| Password policy (12–72 chars, mixed case, digit, symbol) and bcrypt cost 12   | `src/lib/password-policy.ts`                                 |
+| Session lifetime 8 h, refreshed every 30 min                                  | `src/lib/auth.ts`                                            |
+| SQLite foreign keys on                                                        | `src/lib/prisma.ts`                                          |
+| PostgreSQL row level security (prepared, applied at cutover)                  | `prisma/postgres-rls.sql`                                    |
+
+Rules a new change must keep:
+
+- A new mutating route writes an audit row with `auditFromSession`. A change
+  that is not audited cannot be proved.
+- A new password path uses `checkPasswordPolicy()` and `hashPassword()` from
+  `src/lib/password-policy.ts`. Never call `bcrypt.hash` directly.
+- The middleware already rate limits and origin-checks `/api`; a route does
+  not repeat that.
+- Seed credentials are listed in `prisma/seed.ts` (`SEED_PASSWORDS`) and in
+  `docs/security-hardening.md`. Local only.
+
 ---
 
 ## Session / Auth Patterns
 
 - `getSession()` from `src/lib/auth.ts` returns the server session.
   `getSessionUser()` from `src/lib/rbac.ts` returns the typed user or null.
+- A session lives at most 8 hours and is refreshed at most every 30 minutes.
 - The session user is fully typed via `src/types/next-auth.d.ts`: `id`,
   `platformRole`, `companyRole`, `companyId`, `companySlug`, `customerOrgId`,
   `customerOrgSlug`, `customerOrgRole`. **Do not cast** — `session.user as any`
@@ -213,9 +242,9 @@ No test suite configured. Verify manually:
 
 1. `npm run db:push && npm run db:seed`
 2. `npm run dev`
-3. Login as `admin@acme.test` / `Password123!` → dashboard loads (companyId present)
-4. Login as `superadmin@glazeflow.app` / `Password123!` → should redirect or show admin view (companyId null)
-5. Login as `bob@customers.test` / `Password123!` at `http://bob.localhost:3000` → tenant storefront loads
+3. Login as `admin@acme.test` / `Gzf!Dobav#2026Kr4pN8` → dashboard loads (companyId present)
+4. Login as `superadmin@glazeflow.app` / `Gzf!Plat#2026Qx7mR2` → should redirect or show admin view (companyId null)
+5. Login as `bob@customers.test` / `Gzf!Kupac#2026Hd6qP9` at `http://bob.localhost:3000` → tenant storefront loads
 6. Check `/dashboard/orders/[id]` — Decimal fields render as strings, no console errors
 
 Full seed credential table: `docs/roles.md` § 6.

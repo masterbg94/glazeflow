@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
 import { notifyMany } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { getSessionUser } from '@/lib/rbac';
 
 // Payment status is set by main company admin/superadmin only (bank payment received).
@@ -27,6 +29,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const updated = await prisma.order.update({
     where: { id },
     data: { paymentStatus },
+  });
+
+  await auditFromSession(user, {
+    action: 'order.payment.change',
+    entity: 'Order',
+    entityId: order.id,
+    ip: getClientIp(req.headers),
+    metadata: { from: order.paymentStatus, to: paymentStatus },
   });
 
   // Notify tenant org members

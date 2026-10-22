@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
+import { checkPasswordPolicy, hashPassword } from '@/lib/password-policy';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { requireRole, toHttpError } from '@/lib/rbac';
 
 const COMPANY_ROLES = ['COMPANY_ADMIN', 'COMPANY_SALES', 'COMPANY_PRODUCTION'] as const;
@@ -82,13 +85,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Invalid customerOrgRole' }, { status: 400 });
   }
 
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    return NextResponse.json({ error: 'User with this email already exists' }, { status: 400 });
+  const policy = checkPasswordPolicy(password, { email, name });
+  if (!policy.ok) {
+    return NextResponse.json({ error: policy.errors.join('. ') }, { status: 400 });
   }
 
-  const bcrypt = await import('bcryptjs');
-  const passwordHash = await bcrypt.hash(password, 12);
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    // One message for every rejection, so the endpoint cannot be used to
+    // find out which addresses exist.
+    return NextResponse.json(
+      { error: 'The user could not be created with these details' },
+      { status: 400 }
+    );
+  }
+
+  const passwordHash = await hashPassword(password);
 
   // Check if it's a Company or CustomerOrg (tenant)
   const company = await prisma.company.findUnique({ where: { id }, select: { id: true } });
@@ -120,6 +132,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         createdAt: true,
       },
     });
+    await auditFromSession(session.user, {
+      action: 'user.create',
+      entity: 'User',
+      entityId: user.id,
+      ip: getClientIp(req.headers),
+      metadata: { email, scope: 'company', companyId: id, companyRole: user.companyRole },
+    });
   } else {
     // Create tenant user
     const tenant = await prisma.customerOrg.findUnique({
@@ -149,6 +168,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         customerOrgRole: true,
         isActive: true,
         createdAt: true,
+      },
+    });
+    await auditFromSession(session.user, {
+      action: 'user.create',
+      entity: 'User',
+      entityId: user.id,
+      ip: getClientIp(req.headers),
+      metadata: {
+        email,
+        scope: 'tenant',
+        customerOrgId: id,
+        customerOrgRole: user.customerOrgRole,
       },
     });
   }

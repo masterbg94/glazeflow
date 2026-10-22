@@ -145,14 +145,14 @@ preusmerava na `/login` (`src/middleware.ts:34-37`).
 
 ### Seed nalozi (lokalni razvoj)
 
-| Email                      | Lozinka        | Uloga                                        |
-| -------------------------- | -------------- | -------------------------------------------- |
-| `superadmin@glazeflow.app` | `Password123!` | `SUPER_ADMIN`                                |
-| `admin@acme.test`          | `Password123!` | `COMPANY_ADMIN`                              |
-| `sales@acme.test`          | `Password123!` | `COMPANY_STAFF` / `COMPANY_SALES`            |
-| `manager@acme.test`        | `Password123!` | `COMPANY_STAFF` / `COMPANY_PRODUCTION`       |
-| `bob@customers.test`       | `Password123!` | `CUSTOMER` / `TENANT_ADMIN` (tenant `bob`)   |
-| `worker@customers.test`    | `Password123!` | `CUSTOMER` / `TENANT_MANAGER` (tenant `bob`) |
+| Email                      | Lozinka                 | Uloga                                        |
+| -------------------------- | ----------------------- | -------------------------------------------- |
+| `superadmin@glazeflow.app` | `Gzf!Plat#2026Qx7mR2`   | `SUPER_ADMIN`                                |
+| `admin@acme.test`          | `Gzf!Dobav#2026Kr4pN8`  | `COMPANY_ADMIN`                              |
+| `sales@acme.test`          | `Gzf!Prodaj#2026Bn3wD7` | `COMPANY_STAFF` / `COMPANY_SALES`            |
+| `manager@acme.test`        | `Gzf!Proizv#2026Tv8sM3` | `COMPANY_STAFF` / `COMPANY_PRODUCTION`       |
+| `bob@customers.test`       | `Gzf!Kupac#2026Hd6qP9`  | `CUSTOMER` / `TENANT_ADMIN` (tenant `bob`)   |
+| `worker@customers.test`    | `Gzf!Radnik#2026Yc2rL5` | `CUSTOMER` / `TENANT_MANAGER` (tenant `bob`) |
 
 Lozinke su iz `prisma/seed.ts` — samo za lokalni razvoj, nikad u produkciju.
 
@@ -188,3 +188,16 @@ Detaljno sa `file:line` referencama: `knowledge-base/auth-gaps.md`.
 8. **`platformRole` dolazi iz request body-a** pri kreiranju korisnika (`companies/[id]/users/route.ts:59`).
 9. **Per-tenant dodela kataloga ne postoji** — svaki tenant vidi ceo katalog. `CustomerPriceOverride` menja samo cenu.
 10. **`NotificationRule` tabela se nikad ne čita** — routing notifikacija je hardkodiran po call site-u.
+
+## 9. Hardening bezbednosti (2026-10-21)
+
+Sve gore navedeno je zatvoreno. Uz to, zatvoreni su i problemi oko samog
+pristupa: nema rate limita na prijavu, nema sigurnosnih header-a, nema
+provere `Origin` headera na upisima, nema audit traga, nema politike lozinke,
+sesija je živela 30 dana, nema uključenih stranih ključeva u SQLite bazi, a
+image optimizer je prihvatao bilo koji host.
+
+Detaljan zapis sa `file:line` referencama, tabela testova i lista lozinka
+nalaze se u `docs/security-hardening.md`. Pravila koja svaka nova izmena mora
+da poštuje su u `AGENTS.md` (odeljak "Security hardening") i u
+`.agents/instructions/app-instructions.md`.
