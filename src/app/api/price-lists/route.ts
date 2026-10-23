@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { requireRole, toHttpError } from '@/lib/rbac';
 
 /**
@@ -88,6 +90,14 @@ export async function POST(req: NextRequest) {
     data: { companyId, name, discountPercent: discount },
   });
 
+  await auditFromSession(user, {
+    action: 'pricelist.create',
+    entity: 'PriceList',
+    entityId: priceList.id,
+    ip: getClientIp(req.headers),
+    metadata: { name, discountPercent: discount },
+  });
+
   return NextResponse.json({
     priceList: { ...priceList, discountPercent: priceList.discountPercent.toString() },
   });
@@ -136,6 +146,17 @@ export async function PATCH(req: NextRequest) {
 
   const updated = await prisma.priceList.update({ where: { id: body.id }, data });
 
+  await auditFromSession(user, {
+    action: 'pricelist.update',
+    entity: 'PriceList',
+    entityId: updated.id,
+    ip: getClientIp(req.headers),
+    metadata: {
+      before: { name: existing.name, discountPercent: existing.discountPercent.toString() },
+      after: { name: updated.name, discountPercent: updated.discountPercent.toString() },
+    },
+  });
+
   return NextResponse.json({
     priceList: { ...updated, discountPercent: updated.discountPercent.toString() },
   });
@@ -174,5 +195,12 @@ export async function DELETE(req: NextRequest) {
   }
 
   await prisma.priceList.delete({ where: { id } });
+  await auditFromSession(user, {
+    action: 'pricelist.delete',
+    entity: 'PriceList',
+    entityId: id,
+    ip: getClientIp(req.headers),
+    metadata: { name: existing.name },
+  });
   return NextResponse.json({ success: true });
 }

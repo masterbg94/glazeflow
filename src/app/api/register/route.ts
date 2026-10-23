@@ -1,6 +1,8 @@
-import bcrypt from 'bcryptjs';
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
+import { checkPasswordPolicy, hashPassword } from '@/lib/password-policy';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { requireRole, toHttpError } from '@/lib/rbac';
 
 // No open registration: third parties must not self-register and order.
@@ -30,6 +32,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const policy = checkPasswordPolicy(password, { email, name });
+  if (!policy.ok) {
+    return NextResponse.json({ error: policy.errors.join('. ') }, { status: 400 });
+  }
+
   const customerOrg = await prisma.customerOrg.findUnique({ where: { id: customerOrgId } });
   if (!customerOrg) {
     return NextResponse.json({ error: 'Customer org not found' }, { status: 404 });
@@ -41,19 +48,33 @@ export async function POST(req: NextRequest) {
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    return NextResponse.json({ error: 'Email already registered' }, { status: 400 });
+    // The same message for every failure, so the endpoint cannot be used to
+    // find out which addresses are registered.
+    return NextResponse.json(
+      { error: 'The user could not be created with these details' },
+      { status: 400 }
+    );
   }
 
   const user = await prisma.user.create({
     data: {
       email,
       name,
-      passwordHash: await bcrypt.hash(password, 10),
+      passwordHash: await hashPassword(password),
       platformRole: 'CUSTOMER',
       customerOrgRole,
       companyId: customerOrg.companyId,
       customerOrgId: customerOrg.id,
     },
   });
+
+  await auditFromSession(admin, {
+    action: 'user.create',
+    entity: 'User',
+    entityId: user.id,
+    ip: getClientIp(req.headers),
+    metadata: { email, customerOrgId: customerOrg.id, customerOrgRole },
+  });
+
   return NextResponse.json({ user: { id: user.id, email: user.email } });
 }

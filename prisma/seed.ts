@@ -3,16 +3,45 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+/**
+ * Development-only credentials.
+ *
+ * Every account has its own password, each one strong enough to satisfy the
+ * production policy in `src/lib/password-policy.ts` (12+ characters, upper,
+ * lower, digit, symbol). They are local seed accounts — never reuse them in
+ * production, and change them before the first real deployment.
+ */
+const SEED_PASSWORDS = {
+  superadmin: 'Gzf!Plat#2026Qx7mR2',
+  acmeAdmin: 'Gzf!Dobav#2026Kr4pN8',
+  acmeManager: 'Gzf!Proizv#2026Tv8sM3',
+  acmeSales: 'Gzf!Prodaj#2026Bn3wD7',
+  bobAdmin: 'Gzf!Kupac#2026Hd6qP9',
+  bobWorker: 'Gzf!Radnik#2026Yc2rL5',
+} as const;
+
+/** bcrypt cost 12 — the same factor the application uses. */
+const BCRYPT_ROUNDS = 12;
+
 async function main() {
-  const hash = await bcrypt.hash('Password123!', 10);
+  const hashOf = (password: string) => bcrypt.hash(password, BCRYPT_ROUNDS);
+
+  const superAdminHash = await hashOf(SEED_PASSWORDS.superadmin);
+  const acmeAdminHash = await hashOf(SEED_PASSWORDS.acmeAdmin);
+  const acmeManagerHash = await hashOf(SEED_PASSWORDS.acmeManager);
+  const acmeSalesHash = await hashOf(SEED_PASSWORDS.acmeSales);
+  const bobAdminHash = await hashOf(SEED_PASSWORDS.bobAdmin);
+  const bobWorkerHash = await hashOf(SEED_PASSWORDS.bobWorker);
 
   await prisma.user.upsert({
     where: { email: 'superadmin@glazeflow.app' },
-    update: {},
+    // The password is rewritten on every seed, so a rotation reaches the
+    // local database as well as the source.
+    update: { passwordHash: superAdminHash },
     create: {
       email: 'superadmin@glazeflow.app',
       name: 'Vlasnik platforme',
-      passwordHash: hash,
+      passwordHash: superAdminHash,
       platformRole: 'SUPER_ADMIN',
     },
   });
@@ -46,11 +75,11 @@ async function main() {
   // Create or update main company users
   await prisma.user.upsert({
     where: { email: 'admin@acme.test' },
-    update: { companyRole: 'COMPANY_ADMIN' },
+    update: { companyRole: 'COMPANY_ADMIN', passwordHash: acmeAdminHash },
     create: {
       email: 'admin@acme.test',
       name: 'Akme Admin',
-      passwordHash: hash,
+      passwordHash: acmeAdminHash,
       platformRole: 'COMPANY_ADMIN',
       companyRole: 'COMPANY_ADMIN',
       companyId: acme.id,
@@ -59,11 +88,11 @@ async function main() {
 
   await prisma.user.upsert({
     where: { email: 'manager@acme.test' },
-    update: { companyRole: 'COMPANY_PRODUCTION' },
+    update: { companyRole: 'COMPANY_PRODUCTION', passwordHash: acmeManagerHash },
     create: {
       email: 'manager@acme.test',
       name: 'Menadžer Proizvodnje',
-      passwordHash: hash,
+      passwordHash: acmeManagerHash,
       platformRole: 'COMPANY_STAFF',
       companyRole: 'COMPANY_PRODUCTION',
       companyId: acme.id,
@@ -72,11 +101,11 @@ async function main() {
 
   await prisma.user.upsert({
     where: { email: 'sales@acme.test' },
-    update: { companyRole: 'COMPANY_SALES' },
+    update: { companyRole: 'COMPANY_SALES', passwordHash: acmeSalesHash },
     create: {
       email: 'sales@acme.test',
       name: 'Prodavac',
-      passwordHash: hash,
+      passwordHash: acmeSalesHash,
       platformRole: 'COMPANY_STAFF',
       companyRole: 'COMPANY_SALES',
       companyId: acme.id,
@@ -298,11 +327,11 @@ async function main() {
 
   await prisma.user.upsert({
     where: { email: 'bob@customers.test' },
-    update: { customerOrgRole: 'TENANT_ADMIN', companyRole: null },
+    update: { customerOrgRole: 'TENANT_ADMIN', companyRole: null, passwordHash: bobAdminHash },
     create: {
       email: 'bob@customers.test',
       name: 'Bob Građevinar',
-      passwordHash: hash,
+      passwordHash: bobAdminHash,
       platformRole: 'CUSTOMER',
       customerOrgRole: 'TENANT_ADMIN',
       companyId: acme.id,
@@ -312,11 +341,11 @@ async function main() {
 
   await prisma.user.upsert({
     where: { email: 'worker@customers.test' },
-    update: { customerOrgRole: 'TENANT_MANAGER', companyRole: null },
+    update: { customerOrgRole: 'TENANT_MANAGER', companyRole: null, passwordHash: bobWorkerHash },
     create: {
       email: 'worker@customers.test',
       name: 'Radnik Mala Firma',
-      passwordHash: hash,
+      passwordHash: bobWorkerHash,
       platformRole: 'CUSTOMER',
       customerOrgRole: 'TENANT_MANAGER',
       companyId: acme.id,
@@ -325,9 +354,12 @@ async function main() {
   });
 
   console.log('✅ seed uspešan!');
-  console.log('Super admin : superadmin@glazeflow.app / Password123!');
-  console.log('Dobavljač    : admin@acme.test / Password123!');
-  console.log('Kupac        : bob@customers.test / Password123!');
+  console.log('Super admin : superadmin@glazeflow.app / ' + SEED_PASSWORDS.superadmin);
+  console.log('Dobavljač    : admin@acme.test / ' + SEED_PASSWORDS.acmeAdmin);
+  console.log('Menadžer     : manager@acme.test / ' + SEED_PASSWORDS.acmeManager);
+  console.log('Prodavac     : sales@acme.test / ' + SEED_PASSWORDS.acmeSales);
+  console.log('Kupac admin  : bob@customers.test / ' + SEED_PASSWORDS.bobAdmin);
+  console.log('Kupac radnik : worker@customers.test / ' + SEED_PASSWORDS.bobWorker);
   // The storefront host is the TENANT slug (CustomerOrg.slug), not the main
   // company's slug — 'acme' is the main company and resolves to a 404.
   console.log('Prodavnica   : http://bob.localhost:3000');

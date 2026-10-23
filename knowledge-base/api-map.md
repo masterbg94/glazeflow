@@ -4,15 +4,20 @@ Every route handler in `src/app/api/`. Auth column names the gate as written in
 code — read the file before trusting this table, and read `auth-gaps.md` for the
 holes.
 
-> **The middleware does not guard any of these routes.**
-> `src/middleware.ts:28-30` returns `NextResponse.next()` for every path that
-> starts with `/api` or `/_next`. The middleware is a navigation helper for the
-> tenant-subdomain rewrite and the `/dashboard` / `/admin` redirect — it is
-> **not** an authorization layer.
+> **The middleware does not authorize any of these routes.**
+> The middleware is a navigation helper for the tenant-subdomain rewrite and the
+> `/dashboard` / `/admin` redirect — it is **not** an authorization layer.
 >
-> Consequence: the Auth column below is the **only** boundary for each route.
-> A route with no `requireRole` and no manual session check is genuinely open,
-> which is exactly the case of `api/pricing/quote` (see `auth-gaps.md` #1).
+> Consequence: the Auth column below is the **only** authorization boundary for
+> each route. A route with no `requireRole` and no manual session check is
+> genuinely open, which is exactly the case of `api/pricing/quote` (see
+> `auth-gaps.md` #1).
+>
+> The middleware does apply two protections to `/api` since 2026-10-21: a rate
+> limit and an origin check on every mutating request
+> (`src/middleware.ts:guardApiRequest`). Neither replaces the Auth column —
+> they only slow an attacker down and stop a cross-origin write. See
+> `docs/security-hardening.md`.
 
 ## Platform and tenancy
 
@@ -38,6 +43,7 @@ holes.
 | `api/companies/[id]/users/[userId]/route.ts` | PATCH     | `requireRole(['SUPER_ADMIN'])`                                         | Updates name, phone, `companyRole`, `customerOrgRole`, `isActive`. The role field must match the owning entity                           |
 | `api/register/route.ts`                      | POST      | `requireRole(['SUPER_ADMIN','COMPANY_ADMIN'])`                         | Creates a tenant user. Validates `customerOrgRole` is `TENANT_ADMIN` or `TENANT_MANAGER`; asserts the org belongs to the admin's company |
 | `api/admin/stats/route.ts`                   | GET       | `requireRole(['SUPER_ADMIN'])`                                         | Platform-wide counts, order breakdown by status, role distribution, recent activity                                                      |
+| `api/admin/audit/route.ts`                   | GET       | `requireRole(['SUPER_ADMIN'])`                                         | The audit trail — one row per state change. Filter by `entity`, `entityId`, `actorId`, `action`                                          |
 | `api/admin/companies/[id]/stats/route.ts`    | GET       | `requireRole(['SUPER_ADMIN'])`                                         | Per-company **or** per-tenant stats, including the monthly revenue trend                                                                 |
 
 Note: `/register` requires an existing admin, so the public registration UI at

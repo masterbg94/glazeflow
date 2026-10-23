@@ -213,8 +213,8 @@ model GlassType {
   orderItemPanes OrderItemGlassPane[]
   priceOverrides CustomerPriceOverride[]
 
-  @@index([companyId])
   @@unique([companyId, name])
+  @@index([companyId])
 }
 
 model PvcProfile {
@@ -241,8 +241,8 @@ model PvcProfile {
   priceOverrides CustomerPriceOverride[]
   savedConfigs   SavedConfiguration[]
 
-  @@index([companyId])
   @@unique([companyId, brand, systemName])
+  @@index([companyId])
 }
 
 model HardwareItem {
@@ -265,8 +265,8 @@ model HardwareItem {
   orderItemHardware OrderItemHardware[]
   priceOverrides    CustomerPriceOverride[]
 
-  @@index([companyId])
   @@unique([companyId, name])
+  @@index([companyId])
 }
 
 model ProductTemplate {
@@ -288,8 +288,8 @@ model ProductTemplate {
   priceOverrides CustomerPriceOverride[]
   savedConfigs   SavedConfiguration[]
 
-  @@index([companyId])
   @@unique([companyId, name])
+  @@index([companyId])
 }
 
 model ProcessingOption {
@@ -308,8 +308,8 @@ model ProcessingOption {
 
   orderItemProcessing OrderItemProcessing[]
 
-  @@index([companyId])
   @@unique([companyId, name])
+  @@index([companyId])
 }
 
 // ---------- Price Lists ----------
@@ -325,8 +325,8 @@ model PriceList {
   customers         CustomerOrg[]
   customerOverrides CustomerPriceOverride[]
 
-  @@index([companyId])
   @@unique([companyId, name])
+  @@index([companyId])
 }
 
 model CustomerPriceOverride {
@@ -609,4 +609,25 @@ model NotificationRule {
   updatedAt  DateTime            @updatedAt
 
   @@index([companyId])
+}
+
+// ---------- Audit trail ----------
+// One row per state change: who, what, when, from where. The actor id is a
+// loose string, not a relation, so deleting a user never deletes the record
+// of what that user did.
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  entity     String
+  entityId   String?
+  actorId    String?
+  actorEmail String?
+  actorRole  String?
+  ip         String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([actorId])
+  @@index([createdAt])
 }

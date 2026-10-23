@@ -11,8 +11,9 @@ criticism of the design.
 
 ## Why the middleware does not save you
 
-`src/middleware.ts` returns `NextResponse.next()` for every path starting with
-`/api`. The middleware never guards API routes. It only:
+`src/middleware.ts` does not authorize API routes. It applies a rate limit and
+an origin check to them (since 2026-10-21), but it never decides who may
+touch a record. It only:
 
 - redirects unauthenticated users away from `/dashboard` and `/admin`
 - restricts `/admin` to `platformRole === 'SUPER_ADMIN'`
@@ -21,8 +22,9 @@ criticism of the design.
   `/admin` there
 - answers 404 for a host that is neither the root host nor a tenant subdomain
 
-Every API route is therefore its own only auth boundary. A route with a weak
-check is directly exploitable.
+Every API route is therefore its own only authorization boundary. A route with
+a weak check is directly exploitable. The rate limit and the origin check in
+the middleware only slow an attacker down and stop a cross-origin write.
 
 ## The gaps
 
@@ -187,6 +189,29 @@ no effect until the token expired.
 
 Now: the `jwt` callback re-reads the user on every request and throws when
 the account is inactive, which makes NextAuth drop the session cookie.
+
+## Hardening of 2026-10-21
+
+The audit that produced this file also found gaps outside the authorization
+checks. They are closed; the full record with file:line references is
+`docs/security-hardening.md`.
+
+| Gap                                              | Where the check lives now                                                         |
+| ------------------------------------------------ | --------------------------------------------------------------------------------- |
+| No rate limit on sign-in or on writes            | `src/lib/rate-limit.ts`, `src/middleware.ts:guardApiRequest`                      |
+| No security headers (CSP, HSTS, frame, referrer) | `next.config.ts`                                                                  |
+| No origin check on mutating requests             | `src/middleware.ts:originAllowed`                                                 |
+| No audit trail                                   | `AuditLog` model, `src/lib/audit.ts`, `GET /api/admin/audit`                      |
+| No database-level protection                     | `src/lib/prisma.ts` (SQLite foreign keys), `prisma/postgres-rls.sql` (PostgreSQL) |
+| No password policy, bcrypt cost 10 in one place  | `src/lib/password-policy.ts`                                                      |
+| Session lived 30 days                            | `src/lib/auth.ts` — 8 hour maximum, refreshed every 30 minutes                    |
+| Image optimizer accepted any host                | `next.config.ts` — `images.remotePatterns` is empty                               |
+| Quote endpoint took unbounded input              | `src/app/api/pricing/quote/route.ts`                                              |
+| User creation revealed which addresses existed   | `src/app/api/register/route.ts`, `src/app/api/companies/[id]/users/route.ts`      |
+
+Two things are still open and are recorded in `docs/security-hardening.md`:
+there is no second factor on any account, and there is no self-service password
+change route.
 
 ## Related non-security gaps worth knowing
 

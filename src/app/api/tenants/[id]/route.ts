@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { requireRole, toHttpError } from '@/lib/rbac';
 
 /**
@@ -64,6 +66,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     include: { priceList: { select: { id: true, name: true, discountPercent: true } } },
   });
 
+  await auditFromSession(user, {
+    action: 'tenant.update',
+    entity: 'CustomerOrg',
+    entityId: tenant.id,
+    ip: getClientIp(req.headers),
+    metadata: { data: Object.keys(data) },
+  });
+
   return NextResponse.json({
     tenant: {
       ...updated,
@@ -100,5 +110,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
 
   await prisma.customerOrg.delete({ where: { id: tenant.id } });
+  await auditFromSession(session.user, {
+    action: 'tenant.delete',
+    entity: 'CustomerOrg',
+    entityId: tenant.id,
+    ip: getClientIp(req.headers),
+  });
   return NextResponse.json({ success: true });
 }

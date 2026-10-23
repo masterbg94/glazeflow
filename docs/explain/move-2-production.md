@@ -142,17 +142,47 @@ npx prisma migrate deploy
 
 ## 6. Verify
 
-| Check | Command |
-|---|---|
-| Build | `npm run build` |
-| Types | `npm run typecheck` |
-| Tests | `npm run test` |
-| Login main | `admin@acme.test` / `Password123!` → `https://glazeflow.app/dashboard` |
-| Login super | `superadmin@glazeflow.app` / `Password123!` → `/admin` (companyId null — handle explicitly) |
-| Login tenant | `bob@customers.test` / `Password123!` → `https://bob.glazeflow.app` |
-| Decimal | open `/dashboard/orders/[id]` — no "Decimal objects are not supported" console error |
+| Check        | Command                                                                                            |
+| ------------ | -------------------------------------------------------------------------------------------------- |
+| Build        | `npm run build`                                                                                    |
+| Types        | `npm run typecheck`                                                                                |
+| Tests        | `npm run test`                                                                                     |
+| Login main   | `admin@acme.test` / `Gzf!Dobav#2026Kr4pN8` → `https://glazeflow.app/dashboard`                     |
+| Login super  | `superadmin@glazeflow.app` / `Gzf!Plat#2026Qx7mR2` → `/admin` (companyId null — handle explicitly) |
+| Login tenant | `bob@customers.test` / `Gzf!Kupac#2026Hd6qP9` → `https://bob.glazeflow.app`                        |
+| Decimal      | open `/dashboard/orders/[id]` — no "Decimal objects are not supported" console error               |
 
 Tenant storefront must sit on `*.glazeflow.app` — `bob.glazeflow.app`, not preview URL.
+
+---
+
+## 7. Security before go-live
+
+The hardening pass of 2026-10-21 is documented in `docs/security-hardening.md`.
+What is left for the production environment:
+
+1. **Do not seed production accounts with the seed passwords.** Run
+   `npm run db:seed` only locally. In production, create the first real user
+   through `POST /api/companies/[id]/users` — the password policy applies
+   there. If the seed was run against the production database, change every
+   account's password immediately.
+2. **Fresh `NEXTAUTH_SECRET`.** `openssl rand -base64 32`. The local value in
+   `.env` is a development secret and is in a file that must never be
+   committed.
+3. **Row level security needs a role that does not bypass it.** The Supabase
+   default `postgres` role has `BYPASSRLS`, so policies written for it do not
+   apply to Prisma's connection. Create the `glazeflow_app` role
+   (`NOBYPASSRLS`) from `prisma/postgres-rls.sql` and point `DATABASE_URL` at
+   it. Without that step the RLS file is documentation, not protection.
+4. **The rate limiter is per instance.** On Vercel, every serverless instance
+   keeps its own counter, so the effective limit multiplies with the number of
+   instances. Either accept it, or move the counters of
+   `src/lib/rate-limit.ts` to a shared store.
+5. **Check the headers on the deployed domain.** `curl -I https://glazeflow.app`
+   must show `Content-Security-Policy`, `Strict-Transport-Security`,
+   `X-Frame-Options: DENY` and `X-Content-Type-Options: nosniff`.
+6. **The session lives 8 hours.** If a shorter one is needed, change
+   `session.maxAge` in `src/lib/auth.ts` — do not raise it.
 
 ---
 
@@ -160,7 +190,7 @@ Tenant storefront must sit on `*.glazeflow.app` — `bob.glazeflow.app`, not pre
 
 - SQLite `dev.db` in repo root = wrong empty file. Live one = `prisma/dev.db`.
 - Supabase free tier: project pause after 1 week inactivity. Restart in dashboard. Prod = Pro plan.
-- Prisma connects as `postgres`/bypassrls → Supabase RLS **not** enforce. Do not write RLS policies expecting them to apply. App do own tenant scoping (`customerOrgId`).
+- Prisma connects as `postgres`/bypassrls → Supabase RLS **not** enforce. Do not write RLS policies expecting them to apply. App do own tenant scoping (`customerOrgId`). To make the policies in `prisma/postgres-rls.sql` real, connect as a `NOBYPASSRLS` role — see section 7.
 - `allowedDevOrigins` in [next.config.ts](next.config.ts) = dev only, prod ignore.
 - `agriculture`... sorry: `emails` via Resend need verified domain in Resend dashboard, else `EMAIL_FROM` reject.
 - `prisma migrate dev` on prod DB = destructive. Prod only `migrate deploy`.
@@ -170,6 +200,7 @@ Tenant storefront must sit on `*.glazeflow.app` — `bob.glazeflow.app`, not pre
 Want me execute step 2 + 3 in repo (schema edit, `prisma.seed` key, shadow-DB wiring) and prep commit? Say go.
 
 Sources:
+
 - [Supabase — Prisma guide](https://supabase.com/docs/guides/database/prisma)
 - [Supabase — Prisma troubleshooting](https://supabase.com/docs/guides/database/prisma/prisma-troubleshooting)
 - [Prisma — PgBouncer (v6)](https://www.prisma.io/docs/orm/v6/prisma-client/setup-and-configuration/databases-connections/pgbouncer)

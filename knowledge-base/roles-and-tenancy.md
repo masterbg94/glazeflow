@@ -121,6 +121,16 @@ with `customerOrgId`, item id, item kind), a filter in `getTenantCatalog`, a
 server-side check in `POST /api/orders` that rejects unassigned items, and an
 admin UI to manage it. Until that exists, do not describe the feature as present.
 
+### Password changes and a second factor
+
+There is no route where a user changes their own password — an administrator
+creates the account and the password (`POST /api/register`,
+`POST /api/companies/[id]/users`). Both routes enforce the policy in
+`src/lib/password-policy.ts` (12–72 characters, mixed case, digit, symbol) and
+hash with bcrypt cost 12.
+
+There is no second factor on any account.
+
 ### Per-tenant ordering limits
 
 `SavedConfiguration` (`prisma/schema.prisma:559-586`) is per-tenant reusable

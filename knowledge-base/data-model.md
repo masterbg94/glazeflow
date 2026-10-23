@@ -133,6 +133,14 @@ Carries `openingCount`, `complexityMultiplier`, and the dimension bounds
 `discountPercent` and `isDefault`. Unique per `[companyId, name]`. A tenant
 points at one via `CustomerOrg.priceListId`.
 
+### `AuditLog` (`prisma/schema.prisma`, end of file)
+
+One row per state change: `action`, `entity`, `entityId`, `actorId`,
+`actorEmail`, `actorRole`, `ip`, `metadata` (JSON), `createdAt`. The actor id
+is a loose string, not a relation, so deleting a user never deletes the record
+of what that user did. Written by `src/lib/audit.ts` from every mutating
+route; read through `GET /api/admin/audit`.
+
 ## Invariants to preserve
 
 1. Exactly one `Company` with `isMainCompany = true`.
@@ -157,7 +165,7 @@ points at one via `CustomerOrg.priceListId`.
 - `prisma/seed.ts` creates: the main company `acme`, users
   `superadmin@glazeflow.app` / `admin@acme.test` / `manager@acme.test` /
   `sales@acme.test` / `bob@customers.test` / `worker@customers.test`, all with
-  password `Password123!`, the tenant "Prozori i vrata Boba" with slug `bob`,
+  its own strong password (see `docs/security-hardening.md`), the tenant "Prozori i vrata Boba" with slug `bob`,
   a full catalog, and three price lists.
 
 The seed is idempotent — it uses `upsert` throughout, so re-running is safe.

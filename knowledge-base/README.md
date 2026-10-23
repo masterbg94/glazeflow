@@ -18,16 +18,17 @@ context to preload.
 
 ## Which file answers what
 
-| Question                                         | Read                        |
-| ------------------------------------------------ | --------------------------- |
-| How do roles work? Who can see what?             | `roles-and-tenancy.md`      |
-| What are the order statuses? Who can move them?  | `order-lifecycle.md`        |
-| How is price computed? Whose price applies?      | `pricing-rules.md`          |
-| What does each API route do and who may call it? | `api-map.md`                |
-| What are the database models and invariants?     | `data-model.md`             |
-| What security holes exist right now?             | `auth-gaps.md`              |
-| Why are there two role fields?                   | `roles-explanation.md`      |
-| What is the app for, in business terms?          | `../docs/Business Logic.md` |
+| Question                                            | Read                            |
+| --------------------------------------------------- | ------------------------------- |
+| How do roles work? Who can see what?                | `roles-and-tenancy.md`          |
+| What are the order statuses? Who can move them?     | `order-lifecycle.md`            |
+| How is price computed? Whose price applies?         | `pricing-rules.md`              |
+| What does each API route do and who may call it?    | `api-map.md`                    |
+| What are the database models and invariants?        | `data-model.md`                 |
+| What security holes exist right now?                | `auth-gaps.md`                  |
+| What hardening is in place, and what is still open? | `../docs/security-hardening.md` |
+| Why are there two role fields?                      | `roles-explanation.md`          |
+| What is the app for, in business terms?             | `../docs/Business Logic.md`     |
 
 ## Skills
 

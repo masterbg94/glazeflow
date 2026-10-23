@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { requireRole, toHttpError } from '@/lib/rbac';
 
 // Tenants = CustomerOrg rows under the single main company.
@@ -122,6 +124,14 @@ export async function POST(req: NextRequest) {
         priceListId: priceList.id,
       },
     });
+  });
+
+  await auditFromSession(user, {
+    action: 'tenant.create',
+    entity: 'CustomerOrg',
+    entityId: tenant.id,
+    ip: getClientIp(req.headers),
+    metadata: { name, slug, discountPercent: discount },
   });
 
   return NextResponse.json({ tenant });

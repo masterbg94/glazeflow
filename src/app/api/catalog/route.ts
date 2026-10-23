@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { requireRole, toHttpError } from '@/lib/rbac';
 
 const typeMap: Record<string, any> = Object.assign(Object.create(null), {
@@ -130,6 +132,13 @@ export async function POST(req: NextRequest) {
   const item = await model.create({
     data: { ...pickFields(type, body.data), companyId },
   });
+  await auditFromSession(user, {
+    action: 'catalog.create',
+    entity: type,
+    entityId: item.id,
+    ip: getClientIp(req.headers),
+    metadata: { type, data: pickFields(type, body.data) },
+  });
   return NextResponse.json({ item });
 }
 
@@ -161,6 +170,13 @@ export async function PATCH(req: NextRequest) {
     where: { id: body.id },
     data: pickFields(type, body.data),
   });
+  await auditFromSession(user, {
+    action: 'catalog.update',
+    entity: type,
+    entityId: item.id,
+    ip: getClientIp(req.headers),
+    metadata: { type, data: pickFields(type, body.data) },
+  });
   return NextResponse.json({ item });
 }
 
@@ -188,5 +204,12 @@ export async function DELETE(req: NextRequest) {
   // Soft delete. A hard delete would break the foreign key from any order
   // that already references the item, and the order history must stay intact.
   const item = await model.update({ where: { id }, data: { isActive: false } });
+  await auditFromSession(user, {
+    action: 'catalog.deactivate',
+    entity: type,
+    entityId: id,
+    ip: getClientIp(req.headers),
+    metadata: { type },
+  });
   return NextResponse.json({ success: true, item });
 }

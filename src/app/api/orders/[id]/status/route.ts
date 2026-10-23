@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
 import { getSession } from '@/lib/auth';
 import { notify, notifyMany } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { publishToUsers } from '@/lib/realtime';
 import {
   effectiveUserRole,
@@ -93,6 +95,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       });
     }
 
+    await auditFromSession(user, {
+      action: 'order.status.change.requested',
+      entity: 'Order',
+      entityId: order.id,
+      ip: getClientIp(req.headers),
+      metadata: { from: order.status, to: newStatus, transitionId: transition.id, reason },
+    });
+
     return NextResponse.json({ transition, requiresApproval: true });
   }
 
@@ -107,6 +117,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         create: { fromStatus: order.status, toStatus: newStatus, note, changedBy: user.id },
       },
     },
+  });
+
+  await auditFromSession(user, {
+    action: 'order.status.change',
+    entity: 'Order',
+    entityId: order.id,
+    ip: getClientIp(req.headers),
+    metadata: { from: order.status, to: newStatus, note },
   });
 
   const members = await prisma.user.findMany({ where: { customerOrgId: order.customerOrgId } });

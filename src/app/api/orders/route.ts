@@ -1,9 +1,11 @@
 import type { Prisma } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
 import { getSession } from '@/lib/auth';
 import { notifyMany } from '@/lib/notifications';
 import { calcItemPricing, calcTotals } from '@/lib/pricing-engine';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { validateOrderBody, ValidationError, type ValidatedOrderItem } from '@/lib/validation';
 
 export async function GET() {
@@ -392,6 +394,20 @@ export async function POST(req: NextRequest) {
       statusHistory: { create: { toStatus: 'NEW', note: 'Order placed' } },
     },
     include: { items: true },
+  });
+
+  await auditFromSession(user, {
+    action: 'order.create',
+    entity: 'Order',
+    entityId: order.id,
+    ip: getClientIp(req.headers),
+    metadata: {
+      orderNumber: order.orderNumber,
+      customerOrgId: user.customerOrgId,
+      total: order.total.toString(),
+      currency: order.currency,
+      itemCount: computedItems.length,
+    },
   });
 
   const staff = await prisma.user.findMany({

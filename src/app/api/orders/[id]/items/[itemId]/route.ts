@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { getSessionUser } from '@/lib/rbac';
 
 /**
@@ -55,6 +57,14 @@ export async function PATCH(
     where: { id: item.id },
     data: { status },
     select: { id: true, status: true },
+  });
+
+  await auditFromSession(user, {
+    action: 'orderitem.status.change',
+    entity: 'OrderItem',
+    entityId: item.id,
+    ip: getClientIp(req.headers),
+    metadata: { orderId: order.id, status },
   });
 
   return NextResponse.json({ item: updated });

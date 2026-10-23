@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auditFromSession } from '@/lib/audit';
 import { prisma } from '@/lib/prisma';
+import { getClientIp } from '@/lib/rate-limit';
 import { requireRole, toHttpError } from '@/lib/rbac';
 
 /**
@@ -198,6 +200,22 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  await auditFromSession(user, {
+    action: 'priceoverride.create',
+    entity: 'CustomerPriceOverride',
+    entityId: override.id,
+    ip: getClientIp(req.headers),
+    metadata: {
+      customerOrgId: tenant.id,
+      glassTypeId: glassTypeId ?? null,
+      profileId: profileId ?? null,
+      hardwareId: hardwareId ?? null,
+      templateId: templateId ?? null,
+      overrideSellPrice: hasAbsolute ? Number(body.overrideSellPrice) : null,
+      discountPercent: hasPercent ? Number(body.discountPercent) : null,
+    },
+  });
+
   return NextResponse.json({
     override: {
       ...override,
@@ -258,6 +276,14 @@ export async function PATCH(req: NextRequest) {
     data,
   });
 
+  await auditFromSession(user, {
+    action: 'priceoverride.update',
+    entity: 'CustomerPriceOverride',
+    entityId: updated.id,
+    ip: getClientIp(req.headers),
+    metadata: { customerOrgId: updated.customerOrgId, data },
+  });
+
   return NextResponse.json({
     override: {
       ...updated,
@@ -283,7 +309,7 @@ export async function DELETE(req: NextRequest) {
 
   const override = await prisma.customerPriceOverride.findUnique({
     where: { id },
-    select: { id: true, companyId: true },
+    select: { id: true, companyId: true, customerOrgId: true },
   });
   if (!override) {
     return NextResponse.json({ error: 'Override not found' }, { status: 404 });
@@ -293,5 +319,12 @@ export async function DELETE(req: NextRequest) {
   }
 
   await prisma.customerPriceOverride.delete({ where: { id } });
+  await auditFromSession(user, {
+    action: 'priceoverride.delete',
+    entity: 'CustomerPriceOverride',
+    entityId: id,
+    ip: getClientIp(req.headers),
+    metadata: { customerOrgId: override.customerOrgId },
+  });
   return NextResponse.json({ success: true });
 }
